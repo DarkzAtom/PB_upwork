@@ -10,8 +10,8 @@ class Part(Base):
     __tablename__ = 'parts'
 
     id = Column(Integer, primary_key=True)
-    supplier_id = Column(Integer, ForeignKey('suppliers.id'), nullable=False)
-    supplier_part_id = Column(String, nullable=False)
+    # supplier_id = Column(Integer, ForeignKey('suppliers.id'), nullable=False)
+    # supplier_part_id = Column(String, nullable=False)
     brand_id = Column(Integer, ForeignKey('brands.id'), nullable=False)
     part_number = Column(String, nullable=False)
     normalized_part_number = Column(String, nullable=False)
