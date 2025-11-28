@@ -52,7 +52,7 @@ class ShippingRateResponse(BaseModel):
     warehouse_region: str
     weight_min: float
     weight_max: float
-    price: Decimal
+    price_pln: Decimal
     carrier: str
     service_level: str
 
@@ -64,7 +64,7 @@ class ShippingRateCreate(BaseModel):
     warehouse_region: str = Field(min_length=1, max_length=200)
     weight_min: float = Field(gt=0)
     weight_max: float = Field(gt=0)
-    price: Decimal = Field(gt=0)
+    price_pln: Decimal = Field(gt=0)
     carrier: str = Field(min_length=1, max_length=200)
     service_level: str = Field(min_length=1, max_length=200)
 
@@ -73,7 +73,7 @@ class ShippingRateUpdate(BaseModel):
     warehouse_region: Optional[str] = Field(None, min_length=1, max_length=200)
     weight_min: Optional[float] = Field(None, gt=0)
     weight_max: Optional[float] = Field(None, gt=0)
-    price: Optional[Decimal] = Field(None, gt=0)
+    price_pln: Optional[Decimal] = Field(None, gt=0)
     carrier: Optional[str] = Field(None, min_length=1, max_length=200)
     service_level: Optional[str] = Field(None, min_length=1, max_length=200)
 
@@ -144,7 +144,7 @@ class SubcategoryUpdate(BaseModel):
 
 class PartBasic(BaseModel):
     id: int
-    brand: str
+    brand_id: int
     part_number: str
     name: str
     images: Optional[List[str]] = None
@@ -154,8 +154,9 @@ class PartBasic(BaseModel):
 
 class PartDetail(BaseModel):
     id: int
-    brand: str
+    brand_id: int
     part_number: str
+    normalized_part_number: str
     name: str
     description: str
     category_id: int
@@ -168,10 +169,9 @@ class PartDetail(BaseModel):
         from_attributes = True
 
 class PartCreate(BaseModel):
-    supplier_id: int = Field(gt=0)
-    supplier_part_id: str = Field(min_length=1)
-    brand: str = Field(min_length=1, max_length=100)
+    brand_id: int = Field(gt=0)
     part_number: str = Field(min_length=1, max_length=100)
+    normalized_part_number: str = Field(min_length=1, max_length=100)
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(min_length=1, max_length=1000)
     category_id: int = Field(gt=0)
@@ -182,10 +182,9 @@ class PartCreate(BaseModel):
     
 
 class PartUpdate(BaseModel):
-    supplier_id: Optional[int] = Field(None, gt=0)
-    supplier_part_id: Optional[str] = None
-    brand: Optional[str] = None
+    brand_id: Optional[int] = Field(None, gt=0)
     part_number: Optional[str] = None
+    normalized_part_number: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
     category_id: Optional[int] = Field(None, gt=0)
@@ -194,10 +193,18 @@ class PartUpdate(BaseModel):
     attributes: Optional[dict] = None
     vehicle_fitment: Optional[dict] = None
 
-class PartResponse(PartCreate):
+class PartResponse(BaseModel):
     id: int
-    created_at: datetime
-    updated_at: datetime
+    brand_id: int
+    part_number: str
+    normalized_part_number: str
+    name: str
+    description: str
+    category_id: int
+    subcategory_id: int
+    images: Optional[List[str]] = None
+    attributes: Optional[dict] = None
+    vehicle_fitment: Optional[dict] = None
 
     class Config:
         from_attributes = True
@@ -236,7 +243,7 @@ class WarehouseCreate(BaseModel):
     country: str = Field(min_length=1, max_length=200)
     region: str = Field(min_length=1, max_length=200)
     shipping_zone_id: int = Field(gt=0)
-    default_lead_time_days: int = Field(gt=0)
+    default_lead_time_days: int = Field(ge=0)
 
 class WarehouseUpdate(BaseModel):
     supplier_id: Optional[int] = Field(None, gt=0)
@@ -244,7 +251,7 @@ class WarehouseUpdate(BaseModel):
     country: Optional[str] = Field(None, min_length=1, max_length=200)
     region: Optional[str] = Field(None, min_length=1, max_length=200)
     shipping_zone_id: Optional[int] = Field(None, gt=0)
-    default_lead_time_days: Optional[int] = Field(None, gt=0)
+    default_lead_time_days: Optional[int] = Field(None, ge=0)
 
 # Supplier Prices
 
@@ -253,14 +260,14 @@ class SupplierPriceResponse(BaseModel):
     part_id: int
     supplier_id: int
     warehouse_id: int
-    supplier_part_id: str
-    base_price: int
+    supplier_sku: str
+    base_price: Decimal
     currency: str
     available_qty: int
     stock_status: str
     lead_time_days: int
-    min_order_qty: int
-    pack_size: int
+    min_order_qty: Optional[int] = None
+    pack_size: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -269,21 +276,21 @@ class SupplierPriceCreate(BaseModel):
     part_id: int = Field(gt=0)
     supplier_id: int = Field(gt=0)
     warehouse_id: int = Field(gt=0)
-    supplier_part_id: str = Field(min_length=1)
-    base_price: int = Field(gt=0)
+    supplier_sku: str = Field(min_length=1)
+    base_price: Decimal = Field(gt=0)
     currency: str = Field(min_length=3, max_length=3)
     available_qty: int = Field(ge=0)
     stock_status: str = Field(min_length=1, max_length=100)
     lead_time_days: int = Field(ge=0)
-    min_order_qty: int = Field(ge=0)
-    pack_size: int = Field(ge=0)
+    min_order_qty: Optional[int] = Field(None, ge=0)
+    pack_size: Optional[int] = Field(None, ge=0)
 
 class SupplierPriceUpdate(BaseModel):
     part_id: Optional[int] = Field(None, gt=0)
     supplier_id: Optional[int] = Field(None, gt=0)
     warehouse_id: Optional[int] = Field(None, gt=0)
-    supplier_part_id: Optional[str] = Field(None, min_length=1)
-    base_price: Optional[int] = Field(None, gt=0)
+    supplier_sku: Optional[str] = Field(None, min_length=1)
+    base_price: Optional[Decimal] = Field(None, gt=0)
     currency: Optional[str] = Field(None, min_length=3, max_length=3)
     available_qty: Optional[int] = Field(None, ge=0)
     stock_status: Optional[str] = Field(None, min_length=1, max_length=100)
@@ -295,10 +302,10 @@ class SupplierPriceUpdate(BaseModel):
 
 class PricingRuleResponse(BaseModel):
     id: int
-    name: str
-    supplier_id: int
-    brand_id: int
-    category_id: int
+    rule_name: str
+    supplier_id: Optional[int]
+    brand_id: Optional[int]
+    category_id: Optional[int]
     price_min: Decimal
     price_max: Decimal
     warehouse_region: str
@@ -312,10 +319,10 @@ class PricingRuleResponse(BaseModel):
         from_attributes = True
 
 class PricingRuleCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    supplier_id: int = Field(gt=0)
-    brand_id: int = Field(gt=0)
-    category_id: int = Field(gt=0)
+    rule_name: str = Field(min_length=1, max_length=200, alias="name")
+    supplier_id: Optional[int] = Field(None, gt=0)
+    brand_id: Optional[int] = Field(None, gt=0)
+    category_id: Optional[int] = Field(None, gt=0)
     price_min: Decimal = Field(gt=0)
     price_max: Decimal = Field(gt=0)
     warehouse_region: str = Field(min_length=1, max_length=200)
@@ -324,9 +331,13 @@ class PricingRuleCreate(BaseModel):
     rounding_rule: str = Field(min_length=1, max_length=100)
     priority: int = Field(gt=0)
     is_active: bool = True
+    
+    class Config:
+        from_attributes = True
+        populate_by_name = True
 
 class PricingRuleUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    rule_name: Optional[str] = Field(None, min_length=1, max_length=200, alias="name")
     supplier_id: Optional[int] = Field(None, gt=0)
     brand_id: Optional[int] = Field(None, gt=0)
     category_id: Optional[int] = Field(None, gt=0)
@@ -338,29 +349,33 @@ class PricingRuleUpdate(BaseModel):
     rounding_rule: Optional[str] = Field(None, min_length=1, max_length=100)
     priority: Optional[int] = Field(None, gt=0)
     is_active: Optional[bool] = None
+    
+    class Config:
+        from_attributes = True
+        populate_by_name = True
 
 # Inventory
 
-class InventoryResponse(BaseModel):
-    id: int
-    part_id: int
-    warehouse_id: int
-    available_qty: int
-    stock_status: str
-    updated_at: datetime
+# class InventoryResponse(BaseModel):
+#     id: int
+#     part_id: int
+#     warehouse_id: int
+#     available_qty: int
+#     stock_status: str
+#     updated_at: datetime
 
-class InventoryCreate(BaseModel):
-    part_id: int = Field(gt=0)
-    warehouse_id: int = Field(gt=0)
-    available_qty: int = Field(ge=0)
-    stock_status: str = Field(min_length=1, max_length=100)
-    updated_at: Optional[datetime] = Field(None)
+# class InventoryCreate(BaseModel):
+#     part_id: int = Field(gt=0)
+#     warehouse_id: int = Field(gt=0)
+#     available_qty: int = Field(ge=0)
+#     stock_status: str = Field(min_length=1, max_length=100)
+#     updated_at: Optional[datetime] = Field(None)
 
 
-class InventoryUpdate(BaseModel):
-    part_id: Optional[int] = Field(None, gt=0)
-    warehouse_id: Optional[int] = Field(None, gt=0)
-    available_qty: Optional[int] = Field(None, ge=0)
-    stock_status: Optional[str] = Field(None, min_length=1, max_length=100)
-    updated_at: Optional[datetime] = Field(None)
+# class InventoryUpdate(BaseModel):
+#     part_id: Optional[int] = Field(None, gt=0)
+#     warehouse_id: Optional[int] = Field(None, gt=0)
+#     available_qty: Optional[int] = Field(None, ge=0)
+#     stock_status: Optional[str] = Field(None, min_length=1, max_length=100)
+#     updated_at: Optional[datetime] = Field(None)
 
