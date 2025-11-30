@@ -3,14 +3,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import func
 from typing import List
 
-from PB_upwork.app.categories.categories_schema import (
+from app.categories.categories_schema import (
     CategoryCreate,
     CategoryUpdate,
     CategoryResponse,
 )
-from PB_upwork.app.categories.categories_model import Category
-from PB_upwork.app.subcategories.subcategories_model import Subcategory
-from PB_upwork.app.parts.parts_model import Part
+from app.categories.categories_model import Category
+from app.subcategories.subcategories_model import Subcategory
+from app.parts.parts_model import Part
 from db_connection import engine
 
 SessionLocal = sessionmaker(bind=engine)

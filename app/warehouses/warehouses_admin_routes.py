@@ -4,15 +4,15 @@ from sqlalchemy import func
 from typing import List, Optional
 from datetime import datetime
 
-from PB_upwork.app.warehouses.warehouses_schema import (
+from app.warehouses.warehouses_schema import (
     WarehouseCreate,
     WarehouseUpdate,
     WarehouseResponse,
 )
-from PB_upwork.app.warehouses.warehouses_model import Warehouse
-from PB_upwork.app.suppliers.suppliers_model import Supplier
-from PB_upwork.app.shipping_zones.shipping_zones_model import ShippingZone
-from PB_upwork.app.supplier_price.supplier_price_model import SupplierPrice
+from app.warehouses.warehouses_model import Warehouse
+from app.suppliers.suppliers_model import Supplier
+from app.shipping_zones.shipping_zones_model import ShippingZone
+from app.supplier_price.supplier_price_model import SupplierPrice
 from db_connection import engine
 
 SessionLocal = sessionmaker(bind=engine)
@@ -107,6 +107,28 @@ async def get_warehouses_by_country(
     ).offset(skip).limit(limit).all()
     
     return warehouses
+
+# Admin: statistics
+@router.get("/statistics", response_model=dict)
+async def get_warehouses_statistics(
+    db: Session = Depends(get_db)
+):
+    total_warehouses = db.query(Warehouse).count()
+    
+    total_suppliers = db.query(Supplier).count()
+    total_zones = db.query(ShippingZone).count()
+    total_inventory_entries = db.query(SupplierPrice).count()
+    avg_lead_time = db.query(func.avg(Warehouse.default_lead_time_days)).scalar() or 0
+    total_suppliers_with_warehouses = db.query(Warehouse.supplier_id).distinct().count()
+
+    return {
+        "total_warehouses": total_warehouses,
+        "total_suppliers_with_warehouses": total_suppliers_with_warehouses,
+        "total_shipping_zones": total_zones,
+        "total_inventory_entries_in_system": total_inventory_entries,
+        "average_lead_time_days": round(float(avg_lead_time), 2) if avg_lead_time else 0,
+        "total_available_suppliers": total_suppliers
+    }
 
 # Admin: get warehouse detail
 @router.get("/{warehouse_id}", response_model=WarehouseResponse)
@@ -400,25 +422,3 @@ async def filter_warehouses_by_supplier_and_zone(
     ).offset(skip).limit(limit).all()
     
     return warehouses
-
-# Admin: statistics
-@router.get("/statistics", response_model=dict)
-async def get_warehouses_statistics(
-    db: Session = Depends(get_db)
-):
-    total_warehouses = db.query(Warehouse).count()
-    
-    total_suppliers = db.query(Supplier).count()
-    total_zones = db.query(ShippingZone).count()
-    total_inventory_entries = db.query(SupplierPrice).count()
-    avg_lead_time = db.query(func.avg(Warehouse.default_lead_time_days)).scalar() or 0
-    total_suppliers_with_warehouses = db.query(Warehouse.supplier_id).distinct().count()
-
-    return {
-        "total_warehouses": total_warehouses,
-        "total_suppliers_with_warehouses": total_suppliers_with_warehouses,
-        "total_shipping_zones": total_zones,
-        "total_inventory_entries_in_system": total_inventory_entries,
-        "average_lead_time_days": round(float(avg_lead_time), 2) if avg_lead_time else 0,
-        "total_available_suppliers": total_suppliers
-    }

@@ -3,15 +3,15 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import func
 from typing import List
 
-from PB_upwork.app.pricing_rules.pricing_rules_schema import (
+from app.pricing_rules.pricing_rules_schema import (
     PricingRuleResponse,
     PricingRuleCreate,
     PricingRuleUpdate,
 )
-from PB_upwork.app.pricing_rules.pricing_rules_model import PricingRule
-from PB_upwork.app.suppliers.suppliers_model import Supplier
-from PB_upwork.app.brands.brands_model import Brand
-from PB_upwork.app.categories.categories_model import Category
+from app.pricing_rules.pricing_rules_model import PricingRule
+from app.suppliers.suppliers_model import Supplier
+from app.brands.brands_model import Brand
+from app.categories.categories_model import Category
 from db_connection import engine
 
 SessionLocal = sessionmaker(bind=engine)
@@ -37,17 +37,6 @@ def list_pricing_rules(
 ):
     rules = db.query(PricingRule).offset(skip).limit(limit).all()
     return rules
-
-
-@router.get("/{rule_id}", response_model=PricingRuleResponse)
-# Admin: get pricing rule detail
-def get_pricing_rule(
-    rule_id: int = Path(..., gt=0), db: Session = Depends(get_db)
-):
-    rule = db.query(PricingRule).filter(PricingRule.id == rule_id).first()
-    if not rule:
-        raise HTTPException(status_code=404, detail="Pricing rule not found")
-    return rule
 
 
 @router.post("/", response_model=PricingRuleResponse, status_code=201)
@@ -429,3 +418,14 @@ def get_price_range_analysis(db: Session = Depends(get_db)):
         "min_price_overall": float(min(r.price_min for r in rules)) if rules else 0,
         "max_price_overall": float(max(r.price_max for r in rules)) if rules else 0,
     }
+
+
+@router.get("/{rule_id}", response_model=PricingRuleResponse)
+# Admin: get pricing rule detail
+def get_pricing_rule(
+    rule_id: int = Path(..., gt=0), db: Session = Depends(get_db)
+):
+    rule = db.query(PricingRule).filter(PricingRule.id == rule_id).first()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Pricing rule not found")
+    return rule

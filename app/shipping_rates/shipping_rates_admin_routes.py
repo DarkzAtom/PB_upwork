@@ -3,13 +3,13 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import func
 from typing import List, Optional
 
-from PB_upwork.app.shipping_rates.shipping_rates_schema import (
+from app.shipping_rates.shipping_rates_schema import (
     ShippingRateCreate,
     ShippingRateUpdate,
     ShippingRateResponse,
 )
-from PB_upwork.app.shipping_rates.shipping_rates_model import ShippingRate
-from PB_upwork.app.shipping_zones.shipping_zones_model import ShippingZone
+from app.shipping_rates.shipping_rates_model import ShippingRate
+from app.shipping_zones.shipping_zones_model import ShippingZone
 from db_connection import engine
 
 SessionLocal = sessionmaker(bind=engine)
@@ -37,18 +37,6 @@ async def list_shipping_rates_admin(
     return rates
 
 
-@router.get("/{rate_id}", response_model=ShippingRateResponse)
-# Admin: get shipping rate detail
-async def get_shipping_rate_admin(
-    rate_id: int = Path(..., gt=0, description="Shipping rate ID"),
-    db: Session = Depends(get_db),
-):
-    rate = db.query(ShippingRate).filter(ShippingRate.id == rate_id).first()
-    if not rate:
-        raise HTTPException(status_code=404, detail=f"Shipping rate with ID {rate_id} not found")
-    return rate
-
-
 @router.post("/", response_model=ShippingRateResponse, status_code=201)
 # Admin: create shipping rate
 async def create_shipping_rate_admin(
@@ -66,49 +54,6 @@ async def create_shipping_rate_admin(
     db.commit()
     db.refresh(db_rate)
     return db_rate
-
-
-@router.put("/{rate_id}", response_model=ShippingRateResponse)
-# Admin: update shipping rate
-async def update_shipping_rate_admin(
-    rate_id: int = Path(..., gt=0, description="Shipping rate ID"),
-    rate_update: ShippingRateUpdate = None,
-    db: Session = Depends(get_db),
-):
-    db_rate = db.query(ShippingRate).filter(ShippingRate.id == rate_id).first()
-    if not db_rate:
-        raise HTTPException(status_code=404, detail=f"Shipping rate with ID {rate_id} not found")
-
-    if rate_update.shipping_zone_id and rate_update.shipping_zone_id != db_rate.shipping_zone_id:
-        zone = db.query(ShippingZone).filter(ShippingZone.id == rate_update.shipping_zone_id).first()
-        if not zone:
-            raise HTTPException(status_code=404, detail=f"Shipping zone with ID {rate_update.shipping_zone_id} not found")
-
-    weight_min = rate_update.weight_min if rate_update.weight_min is not None else db_rate.weight_min
-    weight_max = rate_update.weight_max if rate_update.weight_max is not None else db_rate.weight_max
-    if weight_min >= weight_max:
-        raise HTTPException(status_code=422, detail="weight_min must be less than weight_max")
-
-    update_data = rate_update.dict(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_rate, key, value)
-
-    db.commit()
-    db.refresh(db_rate)
-    return db_rate
-
-
-@router.delete("/{rate_id}", status_code=204)
-# Admin: delete shipping rate
-async def delete_shipping_rate_admin(
-    rate_id: int = Path(..., gt=0, description="Shipping rate ID"),
-    db: Session = Depends(get_db),
-):
-    db_rate = db.query(ShippingRate).filter(ShippingRate.id == rate_id).first()
-    if not db_rate:
-        raise HTTPException(status_code=404, detail=f"Shipping rate with ID {rate_id} not found")
-    db.delete(db_rate)
-    db.commit()
 
 
 @router.post("/bulk-create", response_model=dict, status_code=201)
@@ -311,3 +256,58 @@ async def find_shipping_rates_admin(
 
     rates = query.offset(skip).limit(limit).all()
     return rates
+
+
+@router.get("/{rate_id}", response_model=ShippingRateResponse)
+# Admin: get shipping rate detail
+async def get_shipping_rate_admin(
+    rate_id: int = Path(..., gt=0, description="Shipping rate ID"),
+    db: Session = Depends(get_db),
+):
+    rate = db.query(ShippingRate).filter(ShippingRate.id == rate_id).first()
+    if not rate:
+        raise HTTPException(status_code=404, detail=f"Shipping rate with ID {rate_id} not found")
+    return rate
+
+
+@router.put("/{rate_id}", response_model=ShippingRateResponse)
+# Admin: update shipping rate
+async def update_shipping_rate_admin(
+    rate_id: int = Path(..., gt=0, description="Shipping rate ID"),
+    rate_update: ShippingRateUpdate = None,
+    db: Session = Depends(get_db),
+):
+    db_rate = db.query(ShippingRate).filter(ShippingRate.id == rate_id).first()
+    if not db_rate:
+        raise HTTPException(status_code=404, detail=f"Shipping rate with ID {rate_id} not found")
+
+    if rate_update.shipping_zone_id and rate_update.shipping_zone_id != db_rate.shipping_zone_id:
+        zone = db.query(ShippingZone).filter(ShippingZone.id == rate_update.shipping_zone_id).first()
+        if not zone:
+            raise HTTPException(status_code=404, detail=f"Shipping zone with ID {rate_update.shipping_zone_id} not found")
+
+    weight_min = rate_update.weight_min if rate_update.weight_min is not None else db_rate.weight_min
+    weight_max = rate_update.weight_max if rate_update.weight_max is not None else db_rate.weight_max
+    if weight_min >= weight_max:
+        raise HTTPException(status_code=422, detail="weight_min must be less than weight_max")
+
+    update_data = rate_update.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_rate, key, value)
+
+    db.commit()
+    db.refresh(db_rate)
+    return db_rate
+
+
+@router.delete("/{rate_id}", status_code=204)
+# Admin: delete shipping rate
+async def delete_shipping_rate_admin(
+    rate_id: int = Path(..., gt=0, description="Shipping rate ID"),
+    db: Session = Depends(get_db),
+):
+    db_rate = db.query(ShippingRate).filter(ShippingRate.id == rate_id).first()
+    if not db_rate:
+        raise HTTPException(status_code=404, detail=f"Shipping rate with ID {rate_id} not found")
+    db.delete(db_rate)
+    db.commit()

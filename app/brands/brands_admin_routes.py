@@ -4,9 +4,9 @@ from sqlalchemy import func
 from typing import List
 
 from db_connection import engine
-from PB_upwork.app.brands.brands_model import Brand
-from PB_upwork.app.parts.parts_model import Part
-from PB_upwork.app.brands.brands_schema import (
+from app.brands.brands_model import Brand
+from app.parts.parts_model import Part
+from app.brands.brands_schema import (
     BrandCreate,
     BrandUpdate,
     BrandResponse,

@@ -5,12 +5,12 @@ from typing import List
 from datetime import datetime
 from decimal import Decimal
 
-from PB_upwork.app.fx_rates.fx_rates_schema import (
+from app.fx_rates.fx_rates_schema import (
     FxRateCreate,
     FxRateUpdate,
     FxRateResponse,
 )
-from PB_upwork.app.fx_rates.fx_rates_model import FxRate
+from app.fx_rates.fx_rates_model import FxRate
 from db_connection import engine
 
 SessionLocal = sessionmaker(bind=engine)

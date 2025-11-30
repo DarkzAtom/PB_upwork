@@ -2,14 +2,14 @@ from fastapi import APIRouter, HTTPException, Query, Path, Depends
 from sqlalchemy.orm import Session, sessionmaker
 from typing import List
 
-from PB_upwork.app.shipping_zones.shipping_zones_schema import (
+from app.shipping_zones.shipping_zones_schema import (
     ShippingZoneCreate,
     ShippingZoneUpdate,
     ShippingZoneResponse,
 )
-from PB_upwork.app.shipping_zones.shipping_zones_model import ShippingZone
-from PB_upwork.app.shipping_rates.shipping_rates_model import ShippingRate
-from PB_upwork.app.warehouses.warehouses_model import Warehouse
+from app.shipping_zones.shipping_zones_model import ShippingZone
+from app.shipping_rates.shipping_rates_model import ShippingRate
+from app.warehouses.warehouses_model import Warehouse
 from db_connection import engine
 
 SessionLocal = sessionmaker(bind=engine)
@@ -51,6 +51,37 @@ async def search_shipping_zones_admin(
         .all()
     )
     return zones
+
+
+@router.get("/statistics", response_model=dict)
+# Admin: shipping zones global statistics
+async def get_shipping_zones_statistics_admin(db: Session = Depends(get_db)):
+    total_zones = db.query(ShippingZone).count()
+    
+    total_rates = db.query(ShippingRate).count()
+    
+    total_warehouses = db.query(Warehouse).count()
+    
+    zones_with_rates = db.query(ShippingZone).join(
+        ShippingRate, ShippingZone.id == ShippingRate.shipping_zone_id
+    ).count()
+    
+    zones_with_warehouses = db.query(ShippingZone).join(
+        Warehouse, ShippingZone.id == Warehouse.shipping_zone_id
+    ).count()
+    
+    zones_without_rates = total_zones - zones_with_rates
+    zones_without_warehouses = total_zones - zones_with_warehouses
+    
+    return {
+        "total_zones": total_zones,
+        "total_shipping_rates_in_system": total_rates,
+        "total_warehouses_in_system": total_warehouses,
+        "zones_with_shipping_rates": zones_with_rates,
+        "zones_without_shipping_rates": zones_without_rates,
+        "zones_with_warehouses": zones_with_warehouses,
+        "zones_without_warehouses": zones_without_warehouses
+    }
 
 
 @router.get("/{zone_id}", response_model=ShippingZoneResponse)
@@ -299,32 +330,3 @@ async def get_zone_warehouses_admin(
         }
         for warehouse in warehouses
     ]
-@router.get("/statistics", response_model=dict)
-# Admin: shipping zones global statistics
-async def get_shipping_zones_statistics_admin(db: Session = Depends(get_db)):
-    total_zones = db.query(ShippingZone).count()
-    
-    total_rates = db.query(ShippingRate).count()
-    
-    total_warehouses = db.query(Warehouse).count()
-    
-    zones_with_rates = db.query(ShippingZone).join(
-        ShippingRate, ShippingZone.id == ShippingRate.shipping_zone_id
-    ).count()
-    
-    zones_with_warehouses = db.query(ShippingZone).join(
-        Warehouse, ShippingZone.id == Warehouse.shipping_zone_id
-    ).count()
-    
-    zones_without_rates = total_zones - zones_with_rates
-    zones_without_warehouses = total_zones - zones_with_warehouses
-    
-    return {
-        "total_zones": total_zones,
-        "total_shipping_rates_in_system": total_rates,
-        "total_warehouses_in_system": total_warehouses,
-        "zones_with_shipping_rates": zones_with_rates,
-        "zones_without_shipping_rates": zones_without_rates,
-        "zones_with_warehouses": zones_with_warehouses,
-        "zones_without_warehouses": zones_without_warehouses
-    }

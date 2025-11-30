@@ -3,15 +3,15 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import func
 from typing import List
 
-from PB_upwork.app.supplier_price.supplier_price_schema import (
+from app.supplier_price.supplier_price_schema import (
     SupplierPriceCreate,
     SupplierPriceUpdate,
     SupplierPriceResponse,
 )
-from PB_upwork.app.supplier_price.supplier_price_model import SupplierPrice
-from PB_upwork.app.parts.parts_model import Part
-from PB_upwork.app.suppliers.suppliers_model import Supplier
-from PB_upwork.app.warehouses.warehouses_model import Warehouse
+from app.supplier_price.supplier_price_model import SupplierPrice
+from app.parts.parts_model import Part
+from app.suppliers.suppliers_model import Supplier
+from app.warehouses.warehouses_model import Warehouse
 from db_connection import engine
 
 SessionLocal = sessionmaker(bind=engine)
@@ -75,6 +75,124 @@ async def create_supplier_price(
     db.refresh(db_price)
     
     return db_price
+
+
+@router.get("/statistics", response_model=dict)
+# Admin: supplier prices statistics
+async def get_supplier_prices_statistics(
+    db: Session = Depends(get_db)
+):
+    total_prices = db.query(SupplierPrice).count()
+    
+    total_parts = db.query(Part).count()
+    
+    total_suppliers = db.query(Supplier).count()
+    
+    total_warehouses = db.query(Warehouse).count()
+    
+    parts_with_prices = db.query(Part).join(
+        SupplierPrice, Part.id == SupplierPrice.part_id
+    ).count()
+    
+    suppliers_with_prices = db.query(Supplier).join(
+        SupplierPrice, Supplier.id == SupplierPrice.supplier_id
+    ).count()
+    
+    warehouses_with_prices = db.query(Warehouse).join(
+        SupplierPrice, Warehouse.id == SupplierPrice.warehouse_id
+    ).count()
+    
+    avg_price = db.query(SupplierPrice).with_entities(
+        func.avg(SupplierPrice.base_price).label('avg_price')
+    ).scalar() or 0
+    
+    min_price = db.query(SupplierPrice).with_entities(
+        func.min(SupplierPrice.base_price).label('min_price')
+    ).scalar() or 0
+    
+    max_price = db.query(SupplierPrice).with_entities(
+        func.max(SupplierPrice.base_price).label('max_price')
+    ).scalar() or 0
+    
+    total_inventory = db.query(SupplierPrice).with_entities(
+        func.sum(SupplierPrice.available_qty).label('total_qty')
+    ).scalar() or 0
+    
+    return {
+        "total_supplier_prices": total_prices,
+        "total_parts": total_parts,
+        "total_suppliers": total_suppliers,
+        "total_warehouses": total_warehouses,
+        "parts_with_prices": parts_with_prices,
+        "suppliers_with_prices": suppliers_with_prices,
+        "warehouses_with_prices": warehouses_with_prices,
+        "average_price": round(float(avg_price), 4) if avg_price else 0,
+        "min_price": float(min_price) if min_price else 0,
+        "max_price": float(max_price) if max_price else 0,
+        "total_available_inventory": int(total_inventory) if total_inventory else 0
+    }
+
+
+@router.get("/low-stock", response_model=List[SupplierPriceResponse])
+# Admin: list low stock supplier prices
+async def get_low_stock_prices(
+    threshold: int = Query(10, ge=0, description="Quantity threshold (default: 10)"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    db: Session = Depends(get_db)
+):
+    prices = db.query(SupplierPrice).filter(
+        SupplierPrice.available_qty <= threshold
+    ).offset(skip).limit(limit).all()
+    
+    return prices
+
+
+@router.get("/upcoming-lead-time", response_model=dict)
+# Admin: lead time analysis for supplier prices
+async def get_lead_time_analysis(
+    db: Session = Depends(get_db)
+):
+    prices = db.query(SupplierPrice).all()
+    
+    if not prices:
+        return {
+            "total_prices": 0,
+            "average_lead_time": 0,
+            "min_lead_time": 0,
+            "max_lead_time": 0,
+            "zero_lead_time": 0
+        }
+    
+    lead_times = [p.lead_time_days for p in prices]
+    
+    return {
+        "total_prices": len(prices),
+        "average_lead_time": round(sum(lead_times) / len(lead_times), 2),
+        "min_lead_time": min(lead_times),
+        "max_lead_time": max(lead_times),
+        "zero_lead_time": len([lt for lt in lead_times if lt == 0])
+    }
+
+
+@router.get("/find-best-price", response_model=SupplierPriceResponse)
+# Admin: find best (lowest) supplier price for part
+async def admin_find_best_price(
+    part_id: int = Query(..., gt=0, description="Part ID"),
+    db: Session = Depends(get_db)
+):
+    part = db.query(Part).filter(Part.id == part_id).first()
+    if not part:
+        raise HTTPException(status_code=404, detail=f"Part with ID {part_id} not found")
+    best_price = (
+        db.query(SupplierPrice)
+        .filter(SupplierPrice.part_id == part_id)
+        .order_by(SupplierPrice.base_price)
+        .first()
+    )
+    if not best_price:
+        raise HTTPException(status_code=404, detail=f"No supplier prices found for part ID {part_id}")
+    return best_price
 
 
 @router.get("/{price_id}", response_model=SupplierPriceResponse)
@@ -245,62 +363,6 @@ async def bulk_delete_supplier_prices(
     }
 
 
-@router.get("/statistics", response_model=dict)
-# Admin: supplier prices statistics
-async def get_supplier_prices_statistics(
-    db: Session = Depends(get_db)
-):
-    total_prices = db.query(SupplierPrice).count()
-    
-    total_parts = db.query(Part).count()
-    
-    total_suppliers = db.query(Supplier).count()
-    
-    total_warehouses = db.query(Warehouse).count()
-    
-    parts_with_prices = db.query(Part).join(
-        SupplierPrice, Part.id == SupplierPrice.part_id
-    ).count()
-    
-    suppliers_with_prices = db.query(Supplier).join(
-        SupplierPrice, Supplier.id == SupplierPrice.supplier_id
-    ).count()
-    
-    warehouses_with_prices = db.query(Warehouse).join(
-        SupplierPrice, Warehouse.id == SupplierPrice.warehouse_id
-    ).count()
-    
-    avg_price = db.query(SupplierPrice).with_entities(
-        func.avg(SupplierPrice.base_price).label('avg_price')
-    ).scalar() or 0
-    
-    min_price = db.query(SupplierPrice).with_entities(
-        func.min(SupplierPrice.base_price).label('min_price')
-    ).scalar() or 0
-    
-    max_price = db.query(SupplierPrice).with_entities(
-        func.max(SupplierPrice.base_price).label('max_price')
-    ).scalar() or 0
-    
-    total_inventory = db.query(SupplierPrice).with_entities(
-        func.sum(SupplierPrice.available_qty).label('total_qty')
-    ).scalar() or 0
-    
-    return {
-        "total_supplier_prices": total_prices,
-        "total_parts": total_parts,
-        "total_suppliers": total_suppliers,
-        "total_warehouses": total_warehouses,
-        "parts_with_prices": parts_with_prices,
-        "suppliers_with_prices": suppliers_with_prices,
-        "warehouses_with_prices": warehouses_with_prices,
-        "average_price": round(float(avg_price), 4) if avg_price else 0,
-        "min_price": float(min_price) if min_price else 0,
-        "max_price": float(max_price) if max_price else 0,
-        "total_available_inventory": int(total_inventory) if total_inventory else 0
-    }
-
-
 @router.get("/by-stock-status/{status}", response_model=List[SupplierPriceResponse])
 # Admin: list supplier prices by stock status
 async def get_prices_by_stock_status(
@@ -315,47 +377,6 @@ async def get_prices_by_stock_status(
     
     return prices
 
-
-@router.get("/low-stock", response_model=List[SupplierPriceResponse])
-# Admin: list low stock supplier prices
-async def get_low_stock_prices(
-    threshold: int = Query(10, ge=0, description="Quantity threshold (default: 10)"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=500),
-    db: Session = Depends(get_db)
-):
-    prices = db.query(SupplierPrice).filter(
-        SupplierPrice.available_qty <= threshold
-    ).offset(skip).limit(limit).all()
-    
-    return prices
-
-
-@router.get("/upcoming-lead-time", response_model=dict)
-# Admin: lead time analysis for supplier prices
-async def get_lead_time_analysis(
-    db: Session = Depends(get_db)
-):
-    prices = db.query(SupplierPrice).all()
-    
-    if not prices:
-        return {
-            "total_prices": 0,
-            "average_lead_time": 0,
-            "min_lead_time": 0,
-            "max_lead_time": 0,
-            "zero_lead_time": 0
-        }
-    
-    lead_times = [p.lead_time_days for p in prices]
-    
-    return {
-        "total_prices": len(prices),
-        "average_lead_time": round(sum(lead_times) / len(lead_times), 2),
-        "min_lead_time": min(lead_times),
-        "max_lead_time": max(lead_times),
-        "zero_lead_time": len([lt for lt in lead_times if lt == 0])
-    }
 
 @router.get("/by-part/{part_id}", response_model=List[SupplierPriceResponse])
 # Admin: list supplier prices by part
@@ -418,26 +439,6 @@ async def admin_get_prices_by_warehouse(
         .all()
     )
     return prices
-
-
-@router.get("/find-best-price", response_model=SupplierPriceResponse)
-# Admin: find best (lowest) supplier price for part
-async def admin_find_best_price(
-    part_id: int = Query(..., gt=0, description="Part ID"),
-    db: Session = Depends(get_db)
-):
-    part = db.query(Part).filter(Part.id == part_id).first()
-    if not part:
-        raise HTTPException(status_code=404, detail=f"Part with ID {part_id} not found")
-    best_price = (
-        db.query(SupplierPrice)
-        .filter(SupplierPrice.part_id == part_id)
-        .order_by(SupplierPrice.base_price)
-        .first()
-    )
-    if not best_price:
-        raise HTTPException(status_code=404, detail=f"No supplier prices found for part ID {part_id}")
-    return best_price
 
 
 @router.get("/filter/by-part-and-supplier", response_model=List[SupplierPriceResponse])

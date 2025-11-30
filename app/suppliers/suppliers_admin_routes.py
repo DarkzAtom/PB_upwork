@@ -2,16 +2,16 @@ from fastapi import APIRouter, HTTPException, Query, Path, Depends
 from sqlalchemy.orm import Session, sessionmaker
 from typing import List
 
-from PB_upwork.app.suppliers.suppliers_schema import (
+from app.suppliers.suppliers_schema import (
     SupplierCreate,
     SupplierUpdate,
     SupplierResponse,
 )
-from PB_upwork.app.suppliers.suppliers_model import Supplier
-from PB_upwork.app.warehouses.warehouses_model import Warehouse
-from PB_upwork.app.supplier_price.supplier_price_model import SupplierPrice
-from PB_upwork.app.parts.parts_model import Part
-from PB_upwork.app.pricing_rules.pricing_rules_model import PricingRule
+from app.suppliers.suppliers_model import Supplier
+from app.warehouses.warehouses_model import Warehouse
+from app.supplier_price.supplier_price_model import SupplierPrice
+from app.parts.parts_model import Part
+from app.pricing_rules.pricing_rules_model import PricingRule
 from db_connection import engine
 
 SessionLocal = sessionmaker(bind=engine)
@@ -44,6 +44,135 @@ async def search_suppliers(
         .all()
     )
     return suppliers
+
+
+@router.get("/all", response_model=List[SupplierResponse])
+# Admin: list all suppliers
+async def list_all_suppliers_admin(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    suppliers = db.query(Supplier).offset(skip).limit(limit).all()
+    return suppliers
+
+
+@router.get("/statistics", response_model=dict)
+# Admin: supplier statistics
+async def supplier_statistics(db: Session = Depends(get_db)):
+    total_suppliers = db.query(Supplier).count()
+
+    suppliers_with_warehouses = (
+        db.query(Supplier)
+        .join(Warehouse, Warehouse.supplier_id == Supplier.id)
+        .distinct()
+        .count()
+    )
+    # Parts table doesn't have supplier_id column
+    suppliers_with_parts = 0
+    suppliers_with_prices = (
+        db.query(Supplier)
+        .join(SupplierPrice, SupplierPrice.supplier_id == Supplier.id)
+        .distinct()
+        .count()
+    )
+    suppliers_with_rules = (
+        db.query(Supplier)
+        .join(PricingRule, PricingRule.supplier_id == Supplier.id)
+        .distinct()
+        .count()
+    )
+
+    return {
+        "total_suppliers": total_suppliers,
+        "suppliers_with_warehouses": suppliers_with_warehouses,
+        "suppliers_with_parts": suppliers_with_parts,
+        "suppliers_with_prices": suppliers_with_prices,
+        "suppliers_with_pricing_rules": suppliers_with_rules,
+    }
+
+
+@router.post("/bulk-create", response_model=dict, status_code=201)
+# Admin: bulk create suppliers
+async def bulk_create_suppliers(suppliers_data: List[SupplierCreate], db: Session = Depends(get_db)):
+    created = 0
+    failed = 0
+    errors = []
+    to_insert: List[Supplier] = []
+
+    for idx, s in enumerate(suppliers_data):
+        try:
+            existing = db.query(Supplier).filter(Supplier.name == s.name).first()
+            if existing:
+                errors.append(
+                    f"Row {idx + 1}: Supplier name '{s.name}' already exists (ID: {existing.id})"
+                )
+                failed += 1
+                continue
+            to_insert.append(Supplier(**s.dict()))
+        except Exception as e:
+            errors.append(f"Row {idx + 1}: {str(e)}")
+            failed += 1
+
+    if to_insert:
+        db.add_all(to_insert)
+        db.commit()
+        created = len(to_insert)
+
+    return {
+        "total": len(suppliers_data),
+        "created": created,
+        "failed": failed,
+        "errors": errors or None,
+    }
+
+
+@router.post("/bulk-delete", response_model=dict)
+# Admin: bulk delete suppliers
+async def bulk_delete_suppliers(
+    supplier_ids: List[int] = Query(..., description="Supplier IDs to delete"),
+    force: bool = Query(False),
+    db: Session = Depends(get_db),
+):
+    deleted = 0
+    failed = 0
+    errors = []
+
+    for sid in supplier_ids:
+        try:
+            s = db.query(Supplier).filter(Supplier.id == sid).first()
+            if not s:
+                errors.append(f"ID {sid}: Supplier not found")
+                failed += 1
+                continue
+
+            if not force:
+                deps_total = (
+                    db.query(Warehouse).filter(Warehouse.supplier_id == sid).count()
+                    + db.query(SupplierPrice).filter(SupplierPrice.supplier_id == sid).count()
+                    + db.query(PricingRule).filter(PricingRule.supplier_id == sid).count()
+                )
+                if deps_total > 0:
+                    errors.append(
+                        f"ID {sid}: Has dependent records ({deps_total}). Set force=true to delete."
+                    )
+                    failed += 1
+                    continue
+
+            db.delete(s)
+            deleted += 1
+        except Exception as e:
+            errors.append(f"ID {sid}: {str(e)}")
+            failed += 1
+
+    db.commit()
+
+    return {
+        "total": len(supplier_ids),
+        "deleted": deleted,
+        "failed": failed,
+        "errors": errors or None,
+    }
 
 
 @router.get("/{supplier_id}/warehouses", response_model=list)
@@ -89,19 +218,9 @@ async def get_supplier_parts_count(
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
 
-    count = db.query(Part).filter(Part.supplier_id == supplier_id).count()
+    # Parts table doesn't have supplier_id column, so always return 0
+    count = 0
     return {"supplier_id": supplier_id, "parts_count": count}
-
-
-@router.get("/all", response_model=List[SupplierResponse])
-# Admin: list all suppliers
-async def list_all_suppliers_admin(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db),
-):
-    suppliers = db.query(Supplier).offset(skip).limit(limit).all()
-    return suppliers
 
 
 @router.post("/", response_model=SupplierResponse, status_code=201)
@@ -171,7 +290,6 @@ async def delete_supplier(
 
     deps = {
         "warehouses": db.query(Warehouse).filter(Warehouse.supplier_id == supplier_id).count(),
-        "parts": db.query(Part).filter(Part.supplier_id == supplier_id).count(),
         "supplier_prices": db.query(SupplierPrice).filter(SupplierPrice.supplier_id == supplier_id).count(),
         "pricing_rules": db.query(PricingRule).filter(PricingRule.supplier_id == supplier_id).count(),
     }
@@ -187,126 +305,3 @@ async def delete_supplier(
 
     db.delete(db_supplier)
     db.commit()
-
-
-@router.post("/bulk-create", response_model=dict, status_code=201)
-# Admin: bulk create suppliers
-async def bulk_create_suppliers(suppliers_data: List[SupplierCreate], db: Session = Depends(get_db)):
-    created = 0
-    failed = 0
-    errors = []
-    to_insert: List[Supplier] = []
-
-    for idx, s in enumerate(suppliers_data):
-        try:
-            existing = db.query(Supplier).filter(Supplier.name == s.name).first()
-            if existing:
-                errors.append(
-                    f"Row {idx + 1}: Supplier name '{s.name}' already exists (ID: {existing.id})"
-                )
-                failed += 1
-                continue
-            to_insert.append(Supplier(**s.dict()))
-        except Exception as e:
-            errors.append(f"Row {idx + 1}: {str(e)}")
-            failed += 1
-
-    if to_insert:
-        db.add_all(to_insert)
-        db.commit()
-        created = len(to_insert)
-
-    return {
-        "total": len(suppliers_data),
-        "created": created,
-        "failed": failed,
-        "errors": errors or None,
-    }
-
-
-@router.post("/bulk-delete", response_model=dict)
-# Admin: bulk delete suppliers
-async def bulk_delete_suppliers(
-    supplier_ids: List[int] = Query(..., description="Supplier IDs to delete"),
-    force: bool = Query(False),
-    db: Session = Depends(get_db),
-):
-    deleted = 0
-    failed = 0
-    errors = []
-
-    for sid in supplier_ids:
-        try:
-            s = db.query(Supplier).filter(Supplier.id == sid).first()
-            if not s:
-                errors.append(f"ID {sid}: Supplier not found")
-                failed += 1
-                continue
-
-            if not force:
-                deps_total = (
-                    db.query(Warehouse).filter(Warehouse.supplier_id == sid).count()
-                    + db.query(Part).filter(Part.supplier_id == sid).count()
-                    + db.query(SupplierPrice).filter(SupplierPrice.supplier_id == sid).count()
-                    + db.query(PricingRule).filter(PricingRule.supplier_id == sid).count()
-                )
-                if deps_total > 0:
-                    errors.append(
-                        f"ID {sid}: Has dependent records ({deps_total}). Set force=true to delete."
-                    )
-                    failed += 1
-                    continue
-
-            db.delete(s)
-            deleted += 1
-        except Exception as e:
-            errors.append(f"ID {sid}: {str(e)}")
-            failed += 1
-
-    db.commit()
-
-    return {
-        "total": len(supplier_ids),
-        "deleted": deleted,
-        "failed": failed,
-        "errors": errors or None,
-    }
-
-
-@router.get("/statistics", response_model=dict)
-# Admin: supplier statistics
-async def supplier_statistics(db: Session = Depends(get_db)):
-    total_suppliers = db.query(Supplier).count()
-
-    suppliers_with_warehouses = (
-        db.query(Supplier)
-        .join(Warehouse, Warehouse.supplier_id == Supplier.id)
-        .distinct()
-        .count()
-    )
-    suppliers_with_parts = (
-        db.query(Supplier)
-        .join(Part, Part.supplier_id == Supplier.id)
-        .distinct()
-        .count()
-    )
-    suppliers_with_prices = (
-        db.query(Supplier)
-        .join(SupplierPrice, SupplierPrice.supplier_id == Supplier.id)
-        .distinct()
-        .count()
-    )
-    suppliers_with_rules = (
-        db.query(Supplier)
-        .join(PricingRule, PricingRule.supplier_id == Supplier.id)
-        .distinct()
-        .count()
-    )
-
-    return {
-        "total_suppliers": total_suppliers,
-        "suppliers_with_warehouses": suppliers_with_warehouses,
-        "suppliers_with_parts": suppliers_with_parts,
-        "suppliers_with_prices": suppliers_with_prices,
-        "suppliers_with_pricing_rules": suppliers_with_rules,
-    }

@@ -1,20 +1,20 @@
 from fastapi import FastAPI
 
 # Routers
-from routers.public.parts import router as public_parts_router
-from routers.admin.parts import router as admin_parts_router
-from routers.public.brands import router as public_brands_router
-from routers.admin.brands import router as admin_brands_router
-from routers.public.categories import router as public_categories_router
-from routers.public.subcategories import router as public_subcategories_router
-from routers.admin.subcategories import router as admin_subcategories_router
-from routers.admin.fx_rates import router as admin_fxrates_router
-from routers.admin.pricing_rules import router as admin_pricingrules_router
-from routers.admin.shipping_rates import router as admin_shippingrates_router
-from routers.admin.shipping_zones import router as admin_shippingzones_router
-from routers.admin.supplier_price import router as admin_supplierprice_router
-from routers.admin.suppliers import router as admin_suppliers_router
-from routers.admin.warehouses import router as admin_warehouses_router
+from app.parts.parts_public_routes import router as public_parts_router
+from app.parts.parts_admin_routes import router as admin_parts_router
+from app.brands.brands_public_routes import router as public_brands_router
+from app.brands.brands_admin_routes import router as admin_brands_router
+from app.categories.categories_public_routes import router as public_categories_router
+from app.subcategories.subcategories_public_routes import router as public_subcategories_router
+from app.subcategories.subcategories_admin_routes import router as admin_subcategories_router
+from app.fx_rates.fx_rates_admin_routes import router as admin_fxrates_router
+from app.pricing_rules.pricing_rules_admin_routes import router as admin_pricingrules_router
+from app.shipping_rates.shipping_rates_admin_routes import router as admin_shippingrates_router
+from app.shipping_zones.shipping_zones_admin_routes import router as admin_shippingzones_router
+from app.supplier_price.supplier_price_admin_routes import router as admin_supplierprice_router
+from app.suppliers.suppliers_admin_routes import router as admin_suppliers_router
+from app.warehouses.warehouses_admin_routes import router as admin_warehouses_router
 
 
 app = FastAPI(title="PB_upwork API")

@@ -4,13 +4,13 @@ from typing import List, Optional, Dict, Any
 from decimal import Decimal, ROUND_UP
 
 from db_connection import engine
-from PB_upwork.app.parts.parts_model import Part
-from PB_upwork.app.brands.brands_model import Brand
-from PB_upwork.app.categories.categories_model import Category
-from PB_upwork.app.supplier_price.supplier_price_model import SupplierPrice
-from PB_upwork.app.warehouses.warehouses_model import Warehouse
-from PB_upwork.app.fx_rates.fx_rates_model import FxRate
-from PB_upwork.app.pricing_rules.pricing_rules_model import PricingRule
+from app.parts.parts_model import Part
+from app.brands.brands_model import Brand
+from app.categories.categories_model import Category
+from app.supplier_price.supplier_price_model import SupplierPrice
+from app.warehouses.warehouses_model import Warehouse
+from app.fx_rates.fx_rates_model import FxRate
+from app.pricing_rules.pricing_rules_model import PricingRule
 
 SessionLocal = sessionmaker(bind=engine)
 
