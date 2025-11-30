@@ -11,17 +11,8 @@ from app.categories.categories_schema import (
 from app.categories.categories_model import Category
 from app.subcategories.subcategories_model import Subcategory
 from app.parts.parts_model import Part
-from db_connection import engine
 
-SessionLocal = sessionmaker(bind=engine)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+from db_routers_connection import get_db
 
 
 router = APIRouter(prefix="/api/categories/admin", tags=["categories-admin"]) 

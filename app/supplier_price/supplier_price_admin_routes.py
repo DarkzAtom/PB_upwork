@@ -12,18 +12,7 @@ from app.supplier_price.supplier_price_model import SupplierPrice
 from app.parts.parts_model import Part
 from app.suppliers.suppliers_model import Supplier
 from app.warehouses.warehouses_model import Warehouse
-from db_connection import engine
-
-SessionLocal = sessionmaker(bind=engine)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
+from db_routers_connection import get_db
 
 router = APIRouter(prefix="/api/supplierprice/admin", tags=["supplierprice-admin"])
 

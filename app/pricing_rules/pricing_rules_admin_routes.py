@@ -12,17 +12,7 @@ from app.pricing_rules.pricing_rules_model import PricingRule
 from app.suppliers.suppliers_model import Supplier
 from app.brands.brands_model import Brand
 from app.categories.categories_model import Category
-from db_connection import engine
-
-SessionLocal = sessionmaker(bind=engine)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+from db_routers_connection import get_db
 
 
 router = APIRouter(prefix="/api/pricingrules/admin", tags=["pricing-rules-admin"]) 

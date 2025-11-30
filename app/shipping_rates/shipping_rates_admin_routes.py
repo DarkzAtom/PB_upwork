@@ -10,17 +10,7 @@ from app.shipping_rates.shipping_rates_schema import (
 )
 from app.shipping_rates.shipping_rates_model import ShippingRate
 from app.shipping_zones.shipping_zones_model import ShippingZone
-from db_connection import engine
-
-SessionLocal = sessionmaker(bind=engine)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+from db_routers_connection import get_db
 
 
 router = APIRouter(prefix="/api/shippingrates/admin", tags=["shipping-rates-admin"]) 

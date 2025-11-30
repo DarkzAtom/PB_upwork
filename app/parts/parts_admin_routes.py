@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session, sessionmaker
 from typing import List, Optional, Dict, Any
 from decimal import Decimal, ROUND_UP
 
-from db_connection import engine
 from app.parts.parts_model import Part
 from app.brands.brands_model import Brand
 from app.categories.categories_model import Category
@@ -19,15 +18,7 @@ from app.parts.parts_schema import (
     PartAdmin,
 )
 
-SessionLocal = sessionmaker(bind=engine)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+from db_routers_connection import get_db
 
 
 router = APIRouter(prefix="/api/parts/admin", tags=["parts-admin"])

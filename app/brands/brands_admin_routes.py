@@ -12,15 +12,7 @@ from app.brands.brands_schema import (
     BrandResponse,
 )
 
-SessionLocal = sessionmaker(bind=engine)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+from db_routers_connection import get_db
 
 
 router = APIRouter(prefix="/api/brands/admin", tags=["brands-admin"])
