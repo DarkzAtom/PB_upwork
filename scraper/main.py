@@ -139,7 +139,7 @@ def click_elements_by_car_brand():
 
                 year_element.highlight()
 
-                time.sleep(20)
+                time.sleep(3)
 
                 year_element.click()
 
@@ -156,7 +156,84 @@ def click_elements_by_car_brand():
 
                 models_divs_group.highlight()
 
-                time.sleep(35)
+                models_divs = models_divs_group.locator('div.ranavnode').all()
+
+                for model_div in models_divs:
+                    model_text = model_div.text_content()
+                    if model_text:
+                        model_div_id = model_div.get_attribute('id')
+                        model_dict = {
+                            'model': model_text,
+                            'model_div_id': model_div_id
+                        }
+                        models.append(model_dict)
+                        logger.info(f"added model: {model_dict['model']}")
+                    else:
+                        logger.error('havent found anything in models')
+                        continue
+
+                for model in models:
+                    logger.info('processing models')
+                    logger.info(f"model: {model['model']}")
+                    model_button_id = 'navhref[' + model['model_div_id'].split('[')[1].split(']')[0] + ']'
+                    logger.info(f'model button id: {model_button_id}')
+                    model_element = page.locator(f"div[id='{model['model_div_id']}']").locator(f"a[id='{model_button_id}']")
+                    model_element.highlight()
+                    time.sleep(4)
+                    model_element.click()
+
+                    time.sleep(5)
+
+
+
+                    #processing submodels
+                    submodels = []
+
+                    logger.info('trying to find')
+
+                    extracted_model_id = model['model_div_id'].split('[')[1].split(']')[0]
+
+                    submodels_group_div = page.locator(f"div#nav\\[{extracted_model_id}\\].ranavnode").locator('div.nchildren')
+                    
+                    if submodels_group_div:
+                        logger.info('mamy to')
+                    else:
+                        logger.info('nie mamy to ')
+
+                    submodel_divs = submodels_group_div.locator('div.ranavnode').all()
+
+                    logger.info(f'found 2 {len(submodel_divs)}')
+
+                    for submodel_div in submodel_divs:
+                        logger.info('processing submodels')
+                        submodel_text = submodel_div.text_content()
+                        if submodel_text:
+                            submodel_div_id = submodel_div.get_attribute('id')
+                            logger.info(f'printed submodelid: {submodel_div_id}')
+                            submodel_dict = {
+                                'submodel': submodel_text,
+                                'submodel_div_id': submodel_div_id
+                            }
+                            submodels.append(submodel_dict)
+                            logger.info(f"added submodel: {submodel_dict['submodel']}   with the id of  {submodel_dict['submodel_div_id']}")
+                        else:
+                            logger.error('no text found proceeding')
+                            continue
+
+                    for submodel in submodels:
+                        logger.info('processing submodels')
+
+                        submodel_button_id = 'navhref[' + submodel['submodel_div_id'].split('[')[1].split(']')[0] + ']'
+                        
+
+                        submodel_element = page.locator(f"div[id='{submodel['submodel_div_id']}']").locator(f"a[id='{submodel_button_id}']")
+                        submodel_element.highlight()
+                        time.sleep(3)
+                        submodel_element.click()
+
+
+
+                time.sleep(5)
 
 
 
