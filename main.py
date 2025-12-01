@@ -15,6 +15,7 @@ from app.shipping_zones.shipping_zones_admin_routes import router as admin_shipp
 from app.supplier_price.supplier_price_admin_routes import router as admin_supplierprice_router
 from app.suppliers.suppliers_admin_routes import router as admin_suppliers_router
 from app.warehouses.warehouses_admin_routes import router as admin_warehouses_router
+from app.cart.cart_routes import router as cart_router
 
 
 app = FastAPI(title="PB_upwork API")
@@ -35,6 +36,7 @@ app.include_router(admin_shippingzones_router)
 app.include_router(admin_supplierprice_router)
 app.include_router(admin_suppliers_router)
 app.include_router(admin_warehouses_router)
+app.include_router(cart_router)
 
 
 @app.get("/healthz")

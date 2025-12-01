@@ -189,11 +189,13 @@ def get_part_detail(
         min_days = (lead_time or 0) + 2
         max_days = (lead_time or 0) + 5
         delivery_range = f"{min_days}–{max_days} days"
+        warehouse_region = offer["warehouse"].region if offer.get("warehouse") else "EU"
     else:
         selling = None
         availability = "Unavailable"
         lead_time = None
         delivery_range = None
+        warehouse_region = None
 
     return {
         "id": part.id,
@@ -211,4 +213,5 @@ def get_part_detail(
         "currency": "PLN" if selling is not None else None,
         "availability_status": availability,
         "estimated_delivery_range": delivery_range,
+        "warehouse_region": warehouse_region,
     }
