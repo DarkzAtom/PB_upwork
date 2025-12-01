@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, Numeric, String, ForeignKey, Boolean
+from sqlalchemy.orm import relationship
 from app.db_base import Base
 
 class PricingRule(Base):
@@ -17,3 +18,7 @@ class PricingRule(Base):
     rounding_rule = Column(String, nullable=False)
     priority = Column(Integer, nullable=False)
     is_active = Column(Boolean, nullable=False)
+
+    supplier = relationship('app.suppliers.suppliers_model.Supplier', back_populates='pricing_rules')
+    brand = relationship('app.brands.brands_model.Brand', back_populates='pricing_rules')
+    category = relationship('app.categories.categories_model.Category', back_populates='pricing_rules')

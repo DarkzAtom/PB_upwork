@@ -20,4 +20,8 @@ class Part(Base):
     attributes = Column(JSONB, nullable=True)
     vehicle_fitment = Column(JSONB, nullable=True)
 
-    supplier_prices = relationship('SupplierPrice', back_populates='part')
+    brand = relationship('app.brands.brands_model.Brand', back_populates='parts')
+    category = relationship('app.categories.categories_model.Category', back_populates='parts')
+    subcategory = relationship('app.subcategories.subcategories_model.Subcategory', back_populates='parts')
+
+    supplier_prices = relationship('app.supplier_price.supplier_price_model.SupplierPrice', back_populates='part')

@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, Numeric, String, ForeignKey, Double
 from app.db_base import Base
+from sqlalchemy.orm import relationship
 
 class ShippingRate(Base):
     __tablename__ = 'shipping_rates'
@@ -12,3 +13,5 @@ class ShippingRate(Base):
     price_pln = Column(Numeric(19, 4), nullable=False)
     carrier = Column(String, nullable=False)
     service_level = Column(String, nullable=False)
+
+    shipping_zone = relationship('app.shipping_zones.shipping_zones_model.ShippingZone', back_populates='shipping_rates')

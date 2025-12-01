@@ -20,6 +20,6 @@ class SupplierPrice(Base):
     pack_size = Column(Integer, nullable=True)
     updated_at = Column(DateTime, nullable=False, default=func.now())
 
-    part = relationship('Part', back_populates='supplier_prices')
-    # supplier = relationship("supplier")
-    # warehouse = relationship("Warehouse")
+    part = relationship('app.parts.parts_model.Part', back_populates='supplier_prices')
+    supplier = relationship('app.suppliers.suppliers_model.Supplier', back_populates='supplier_prices')
+    warehouse = relationship('app.warehouses.warehouses_model.Warehouse', back_populates='supplier_prices')
