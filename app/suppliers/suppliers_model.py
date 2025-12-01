@@ -1,6 +1,5 @@
-from sqlalchemy import ARRAY, Column, Integer, DateTime, Numeric, UniqueConstraint, func, String, ForeignKey, Double, Boolean
-from sqlalchemy.dialects.postgresql import CHAR, JSONB
-from db_base import Base
+from sqlalchemy import Column, Integer, String
+from app.db_base import Base
 
 class Supplier(Base):
     __tablename__ = 'suppliers'

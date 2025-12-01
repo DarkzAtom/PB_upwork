@@ -1,6 +1,7 @@
-from sqlalchemy import ARRAY, Column, Integer, DateTime, Numeric, UniqueConstraint, func, String, ForeignKey, Double, Boolean
-from sqlalchemy.dialects.postgresql import CHAR, JSONB
-from db_base import Base
+from sqlalchemy import Column, Integer, DateTime, Numeric, func, String, ForeignKey
+from sqlalchemy.dialects.postgresql import CHAR
+from sqlalchemy.orm import relationship
+from app.db_base import Base
 
 class SupplierPrice(Base):
     __tablename__ = 'supplier_prices'
@@ -18,3 +19,7 @@ class SupplierPrice(Base):
     min_order_qty = Column(Integer, nullable=True)
     pack_size = Column(Integer, nullable=True)
     updated_at = Column(DateTime, nullable=False, default=func.now())
+
+    part = relationship('Part', back_populates='supplier_prices')
+    # supplier = relationship("supplier")
+    # warehouse = relationship("Warehouse")

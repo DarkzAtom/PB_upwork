@@ -1,6 +1,7 @@
-from sqlalchemy import ARRAY, Column, Integer, DateTime, Numeric, UniqueConstraint, func, String, ForeignKey, Double, Boolean
-from sqlalchemy.dialects.postgresql import CHAR, JSONB
-from db_base import Base
+from sqlalchemy import ARRAY, Column, Integer, String, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
+from app.db_base import Base
 
 class Part(Base):
     __tablename__ = 'parts'
@@ -18,3 +19,5 @@ class Part(Base):
     images = Column(ARRAY(String), nullable=True)
     attributes = Column(JSONB, nullable=True)
     vehicle_fitment = Column(JSONB, nullable=True)
+
+    supplier_prices = relationship('SupplierPrice', back_populates='part')
