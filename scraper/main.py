@@ -86,41 +86,35 @@ def click_elements_by_car_brand():
         brand_dict = {}
 
         for brand in brands:
-            brand_dict
             logger.info(f'brand name: {brand}')
-            # wide to see children (years)
-            brand_td = page.locator('td.nlabel').get_by_text(brand, exact=True)
-            brand_td.hover()
-            brand_td.highlight()
 
+            # Find the brand's div element - use .first to get only the top-level brand div
+            brand_div = page.locator(f'div.ranavnode:has(td.nlabel a:text-is("{brand}"))').first
 
-            brand_td.click()
+            # Click to expand brand (click the icon, not the label)
+            brand_icon_td = brand_div.locator('td.niconspace a').first
+            brand_icon_td.click()
+
+            # Wait for direct children to load (use > to select only direct child)
+            brand_div.locator('> div.nchildren').wait_for(state='visible', timeout=5000)
             time.sleep(random.uniform(0.1, 0.4))
 
             # processing years
             years = []
-
             logger.info('search years')
 
-            brand_div = brand_td.locator('..').locator('..').locator('..').locator('..').locator('..').locator('..').locator('..')
-
-            years_divs_group = brand_div.locator('div.nchildren')
-
-            # years_divs_group = brand_div.locator('div.nchildren').first.wait_for(state='visible')
-
-            logger.info('search 2')
-
-            try:    
-                years_divs = years_divs_group.locator('div.ranavnode').all()
-            except Exception as e:
-                logger.info(f'error {e}')
+            years_divs_group = brand_div.locator('> div.nchildren').first
+            years_divs = years_divs_group.locator('> div.ranavnode').all()
 
             logger.info(f'yearsdivs len: {len(years_divs)}')
-            
-            for year in years_divs:
-                year_text = year.text_content()
+
+            for year_div in years_divs:
+                # Get only the year label, not all nested content
+                year_label = year_div.locator('td.nlabel a').first
+                year_text = year_label.text_content().strip()
+
                 if year_text:
-                    div_id = year.get_attribute('id')
+                    div_id = year_div.get_attribute('id')
                     year_dict = {
                         'year': year_text,
                         'div_id': div_id
@@ -134,32 +128,40 @@ def click_elements_by_car_brand():
             for year in years:
                 print(year)
 
-            for year in years:    
-                year_element = brand_div.get_by_text(year['year'])
+            for year in years:
+                # Use the specific div ID to locate and click
+                # Escape the brackets in the ID for CSS selector
+                escaped_id = year['div_id'].replace('[', '\\[').replace(']', '\\]')
+                year_div = page.locator(f"div#{escaped_id}")
+                year_icon = year_div.locator('td.niconspace a').first
 
-                year_element.highlight()
-
-                time.sleep(3)
-
-                year_element.click()
+                year_icon.highlight()
+                time.sleep(1)
 
 
-                logger.info('clicked')
+                if len(years) > 1:
+                    year_icon.click()
 
-                time.sleep(2)
 
+                logger.info('clicked year')
+
+                # Wait for models to load
+                year_div.locator('> div.nchildren').wait_for(state='visible', timeout=5000)
+                time.sleep(random.uniform(0.2, 0.5))
 
                 # processing models
                 models = []
 
-                models_divs_group = page.locator(f"div[id='{year['div_id']}']").locator('div.nchildren')
+                models_divs_group = year_div.locator('> div.nchildren').first
+                models_divs = models_divs_group.locator('> div.ranavnode').all()
 
-                models_divs_group.highlight()
-
-                models_divs = models_divs_group.locator('div.ranavnode').all()
+                logger.info(f'found {len(models_divs)} models')
 
                 for model_div in models_divs:
-                    model_text = model_div.text_content()
+                    # Get only the model label text
+                    model_label = model_div.locator('td.nlabel a').first
+                    model_text = model_label.text_content().strip()
+
                     if model_text:
                         model_div_id = model_div.get_attribute('id')
                         model_dict = {
@@ -167,73 +169,219 @@ def click_elements_by_car_brand():
                             'model_div_id': model_div_id
                         }
                         models.append(model_dict)
-                        logger.info(f"added model: {model_dict['model']}")
+                        logger.info(f"added model: {model_dict['model']}, id: {model_div_id}")
                     else:
                         logger.error('havent found anything in models')
                         continue
 
                 for model in models:
-                    logger.info('processing models')
-                    logger.info(f"model: {model['model']}")
-                    model_button_id = 'navhref[' + model['model_div_id'].split('[')[1].split(']')[0] + ']'
-                    logger.info(f'model button id: {model_button_id}')
-                    model_element = page.locator(f"div[id='{model['model_div_id']}']").locator(f"a[id='{model_button_id}']")
-                    model_element.highlight()
-                    time.sleep(4)
-                    model_element.click()
+                    logger.info(f"processing model: {model['model']}")
 
-                    time.sleep(5)
+                    # Click the model icon to expand
+                    # Escape the brackets in the ID for CSS selector
+                    escaped_model_id = model['model_div_id'].replace('[', '\\[').replace(']', '\\]')
+                    model_div_element = page.locator(f"div#{escaped_model_id}")
+                    model_icon = model_div_element.locator('td.niconspace a').first
+
+                    model_icon.highlight()
+                    time.sleep(1)
+
+                    if len(models) > 1:
+                        model_icon.click()
+
+                    # Wait for submodels to load
+                    try:
+                        model_div_element.locator('> div.nchildren').wait_for(state='visible', timeout=5000)
+                        time.sleep(random.uniform(0.2, 0.5))
+                    except PlaywrightTimeoutError:
+                        logger.warning(f'No submodels found for {model["model"]}')
+                        continue
 
 
 
-                    #processing submodels
+                    # processing submodels (engine configurations)
                     submodels = []
 
-                    logger.info('trying to find')
+                    logger.info('processing submodels')
 
-                    extracted_model_id = model['model_div_id'].split('[')[1].split(']')[0]
+                    submodels_group_div = model_div_element.locator('> div.nchildren').first
+                    submodel_divs = submodels_group_div.locator('> div.ranavnode').all()
 
-                    submodels_group_div = page.locator(f"div#nav\\[{extracted_model_id}\\].ranavnode").locator('div.nchildren')
-                    
-                    if submodels_group_div:
-                        logger.info('mamy to')
-                    else:
-                        logger.info('nie mamy to ')
-
-                    submodel_divs = submodels_group_div.locator('div.ranavnode').all()
-
-                    logger.info(f'found 2 {len(submodel_divs)}')
+                    logger.info(f'found {len(submodel_divs)} submodels')
 
                     for submodel_div in submodel_divs:
-                        logger.info('processing submodels')
-                        submodel_text = submodel_div.text_content()
+                        # Get only the submodel label text
+                        submodel_label = submodel_div.locator('td.nlabel a').first
+                        submodel_text = submodel_label.text_content().strip()
+
                         if submodel_text:
                             submodel_div_id = submodel_div.get_attribute('id')
-                            logger.info(f'printed submodelid: {submodel_div_id}')
+                            logger.info(f'found submodel: {submodel_text}, id: {submodel_div_id}')
                             submodel_dict = {
                                 'submodel': submodel_text,
                                 'submodel_div_id': submodel_div_id
                             }
                             submodels.append(submodel_dict)
-                            logger.info(f"added submodel: {submodel_dict['submodel']}   with the id of  {submodel_dict['submodel_div_id']}")
                         else:
-                            logger.error('no text found proceeding')
+                            logger.error('no text found for submodel')
                             continue
 
                     for submodel in submodels:
-                        logger.info('processing submodels')
+                        logger.info(f'clicking submodel: {submodel["submodel"]}')
 
-                        submodel_button_id = 'navhref[' + submodel['submodel_div_id'].split('[')[1].split(']')[0] + ']'
+                        # Click the submodel icon to expand parts
+                        # Escape the brackets in the ID for CSS selector
+                        escaped_submodel_id = submodel['submodel_div_id'].replace('[', '\\[').replace(']', '\\]')
+                        submodel_div_element = page.locator(f"div#{escaped_submodel_id}")
+                        submodel_icon = submodel_div_element.locator('td.niconspace a').first
+
+                        submodel_icon.highlight()
+                        time.sleep(1)
+                        if len(submodels) > 1:
+                            submodel_icon.click()
+
+                        # Wait for parts categories to load
+                        try:
+                            submodel_div_element.locator('> div.nchildren').wait_for(state='visible', timeout=5000)
+                            time.sleep(random.uniform(0.2, 0.5))
+                            logger.info(f'Parts loaded for {submodel["submodel"]}')
+
+                            # Here you can collect part categories if needed
+                            # part_categories = submodel_div_element.locator('> div.nchildren > div.ranavnode').all()
+                            # ... process part categories ...
+
+                        except PlaywrightTimeoutError:
+                            logger.warning(f'No parts found for {submodel["submodel"]}')
+
+
                         
 
-                        submodel_element = page.locator(f"div[id='{submodel['submodel_div_id']}']").locator(f"a[id='{submodel_button_id}']")
-                        submodel_element.highlight()
-                        time.sleep(3)
-                        submodel_element.click()
+                        ######## category processing
+
+                        categories = []
+
+                        category_group_div = submodel_div_element.locator('> div.nchildren').first
+                        category_divs = category_group_div.locator('> div.ranavnode').all()
+
+                        for category_div in category_divs:
+                            #extracting the text from the div
+                            category_label = category_div.locator('td.nlabel a').first
+                            category_text = category_label.text_content().strip()
+
+                            if category_text and not category_text=='Show Closeouts Only':
+                                category_div_id = category_div.get_attribute('id')
+                                category_dict = {
+                                    'category': category_text,
+                                    "category_div_id": category_div_id
+                                }
+                                categories.append(category_dict)
+                            else:
+                                logger.info("Can't find category text")
+                                continue
+
+                        for category in categories:
+                            logger.info(f"locating and clicking category {category['category']} with the id of {category['category_div_id']}")
+
+                            escaped_category_id = category['category_div_id'].replace('[', '\\[').replace(']', '\\]')
+
+                            category_div_element = page.locator(f'div#{escaped_category_id}')
+
+                            category_icon = category_div_element.locator('td.niconspace a').first
+
+                            category_icon.highlight()
+
+                            time.sleep(1)
+                            if len(categories) > 1:
+                                logger.info(f"actually clicking for a category icon of {category['category']} of category div element {category['category_div_id']}")
+                                category_icon.click()
+
+                            # Wait for parts subcategories to load
+                            try:
+                                category_div_element.locator('> div.nchildren').wait_for(state='visible', timeout=5000)
+                                time.sleep(random.uniform(0.2, 0.5))
+                                logger.info(f'Parts loaded for {category["category"]}')
+
+                                # Here you can collect part sub if needed
+                                # part_categories = submodel_div_element.locator('> div.nchildren > div.ranavnode').all()
+                                # ... process part categories ...
+
+                            except PlaywrightTimeoutError:
+                                logger.warning(f'No parts found for {category["category"]}')
+
+
+                            
+                            ######## subcategory part #######################
+
+                            subcategories = []
+
+                            subcategories_group_divs = category_div_element.locator('> div.nchildren').first
+                            subcategory_divs = subcategories_group_divs.locator('> div.ranavnode').all()
+
+                            for subcategory_div in subcategory_divs:
+                                subcategory_label = subcategory_div.locator('td.nlabel a').first
+                                subcategory_text = subcategory_label.text_content().strip()
+
+                                if subcategory_text:
+
+                                    subcategory_div_id = subcategory_div.get_attribute('id')
+                                    subcategory_dict = {
+                                        'subcategory': subcategory_text,
+                                        'subcategory_div_id': subcategory_div_id
+                                    }
+                                    subcategories.append(subcategory_dict)
+                                else:
+                                    logger.info('cant find a text in the subcategory element')
+                                    continue
+
+                            for subcategory in subcategories:
+                                logger.info(f"working with subcategory {subcategory['subcategory']} with div id {subcategory['subcategory_div_id']}")
+
+                                escaped_subcategory_id = subcategory['subcategory_div_id'].replace('[', '\\[').replace(']', '\\]')
+                                subcategory_div_element = page.locator(f'div#{escaped_subcategory_id}')
+                                subcategory_icon = subcategory_div_element.locator('td.niconspace a').first
+
+                                subcategory_icon.highlight()
+
+                                time.sleep(1)
+
+                                if len(subcategories) > 1:
+                                    logger.info('actually clicking subcategory')
+                                    subcategory_icon.click()
+
+                                try:
+                                    subcategory_div_element.locator("> div.nchildren").wait_for(state='visible', timeout=5000)
+                                    time.sleep(random.uniform(0.2, 0.5))
+                                    logger.info(f'Parts loaded for {category["category"]}')
+                                except PlaywrightTimeoutError:
+                                    logger.warning(f"No success loading children of the subcategory element {subcategory['subcategory']} by id {subcategory['subcategory_div_id']}")
 
 
 
-                time.sleep(5)
+
+                                '''what is needed to be scraped from a part
+                                1. part_id
+                                2. supplier_part_id / catalog_id
+                                3. brand_id
+                                4. part_number
+                                5. normalized_part_number
+                                6. name 
+                                7. description
+                                8. category_id
+                                9. subcategory_id
+                                10. images
+                                11. attributes
+                                12. vehicle_fitment
+                                '''
+                                
+
+
+
+
+
+                            
+
+
+                time.sleep(1)
 
 
 
