@@ -356,7 +356,42 @@ def click_elements_by_car_brand():
                                     logger.warning(f"No success loading children of the subcategory element {subcategory['subcategory']} by id {subcategory['subcategory_div_id']}")
 
 
+                                ######## parts processing #######################
 
+
+                                parts = []
+                                parts_group_div = subcategory_div_element.locator('> div.nchildren').first.locator('> div.listings-container').first.locator('> form').first.locator('> div.listing-container-border').locator('> div').first.locator('> table').first
+                                if not parts_group_div:
+                                    logger.info(f'No parts group found for subcategory {subcategory["subcategory"]}')
+                                    continue
+
+                                
+
+                                part_divs = parts_group_div.locator('> tbody.listing-inner').all()
+                                logger.info(f'found {len(part_divs)} parts in subcategory {subcategory["subcategory"]}')
+                                for part_div in part_divs:
+                                    part_label = part_div.locator('span.listing-final-manufacturer').first
+                                    part_text = part_label.text_content().strip()
+
+                                    if part_text:
+                                        logger.info(f'successfully found the name of the manufacturer of the part {part_text}')
+                                        part_div_id = part_div.get_attribute('id')
+                                        part_dict = {
+                                            'part': part_text,
+                                            'part_div_id': part_div_id
+                                        }
+                                        parts.append(part_dict)
+                                    else:
+                                        logger.info('cant find a text in the part element')
+                                        continue
+
+                                for part in parts:
+                                    logger.info(f"working with part {part['part']} with div id {part['part_div_id']}")
+                                    escaped_part_id = part['part_div_id'].replace('[', '\\[').replace(']', '\\]')
+                                    part_div_element = page.locator(f'div#{escaped_part_id}')
+                                    part_div_element.highlight()
+
+                                
 
                                 '''what is needed to be scraped from a part
                                 1. part_id
