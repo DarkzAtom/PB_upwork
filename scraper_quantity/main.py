@@ -1,118 +1,127 @@
 import requests
 from bs4 import BeautifulSoup
+import json
 import sys
 
-cookies = {
-    'ID': '0',
-    'mkt_US': 'true',
-    'mkt_CA': 'true',
-    'mkt_MX': 'true',
-    'year_2005': 'true',
-    'ck': '1',
-    'idlist': '0',
-}
+# THESE TWO LINES ARE CONFIGURATION
+manufacturer = "CARLSON"
+part_number = "H835"
 
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept-Encoding': 'gzip, deflate, br',
+group_index = "3"
+
+# ========== FIRST REQUEST ==========
+headers_1 = {
+    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Sec-GPC': '1',
     'Connection': 'keep-alive',
     'Upgrade-Insecure-Requests': '1',
     'Sec-Fetch-Dest': 'document',
     'Sec-Fetch-Mode': 'navigate',
     'Sec-Fetch-Site': 'none',
     'Sec-Fetch-User': '?1',
-    'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-    'Sec-Ch-Ua-Mobile': '?0',
-    'Sec-Ch-Ua-Platform': '"Windows"',
-    'Cache-Control': 'max-age=0',
+    'Priority': 'u=0, i',
 }
 
 params = {
-    'mfr': 'valvoline',
-    'partnum': '904683',
+    'mfr': manufacturer,
+    'partnum': part_number,
 }
 
-response = requests.get('https://www.rockauto.com/en/partsearch/', params=params, cookies=cookies, headers=headers)
-soup = BeautifulSoup(response.content, 'html.parser')
+print(f'Manufacturer: {manufacturer}', file=sys.stderr)
+print(f'Part number: {part_number}\n', file=sys.stderr)
+
+response_1 = requests.get('https://www.rockauto.com/en/partsearch/', 
+                          params=params, 
+                          headers=headers_1)
+
+soup = BeautifulSoup(response_1.content, 'html.parser')
+
 nck_input = soup.find('input', {'name': '_nck'})
-listing_data_input = soup.find('input', {'name': 'listing_data_essential[3]'})
-ssk_input = soup.find('input', {'name': 'ssk[3]'})
-        
-if nck_input and listing_data_input and ssk_input and nck_input.get('value') and listing_data_input.get('value') and ssk_input.get('value'):
-    print('nck: ' + nck_input['value'], file=sys.stderr)
-    print('listing_data_essential: ' + listing_data_input['value'], file=sys.stderr)
-    print('ssk: ' + ssk_input['value'], file=sys.stderr)
-else:
-    print("Could not find something", file=sys.stderr)
-    exit()
+listing_data_input = soup.find('input', {'name': f'listing_data_essential[{group_index}]'})
+ssk_input = soup.find('input', {'name': f'ssk[{group_index}]'})
+jnck_inputs = soup.find_all('input', {'name': '_nck'})
+jnck_input = jnck_inputs[int(group_index)].get('value') if len(jnck_inputs) > int(group_index) else None
+
+saved_server_cookie = response_1.cookies.get('saved_server', '')
+
+if not (nck_input and nck_input.get('value')):
+    print('ERROR: Could not find nck', file=sys.stderr)
+    sys.exit(1)
+
+if not (listing_data_input and listing_data_input.get('value')):
+    print('ERROR: Could not find listing_data_essential', file=sys.stderr)
+    sys.exit(1)
+
+if not (ssk_input and ssk_input.get('value')):
+    print('ERROR: Could not find ssk', file=sys.stderr)
+    sys.exit(1)
+
+if not jnck_input:
+    print('ERROR: Could not find jnck', file=sys.stderr)
+    sys.exit(1)
+
+nck_token = nck_input['value']
+listing_data_json = listing_data_input['value']
+ssk_token = ssk_input['value']
+jnck_token = jnck_input
+
+print(f'nck: {nck_token[:50]}...', file=sys.stderr)
+print(f'listing_data: {listing_data_json[:50]}...', file=sys.stderr)
+print(f'ssk: {ssk_token[:50]}...', file=sys.stderr)
+print(f'jnck: {jnck_token[:50]}...', file=sys.stderr)
+print(f'saved_server cookie: {saved_server_cookie[:50]}...', file=sys.stderr)
 
 
-#####################################3
+# ========== SECOND REQUEST ==========
+quantity = "99999"
+option_choice_value = "0-0-0-1"
 
 cookies = {
+    'saved_server': saved_server_cookie,
     'ID': '0',
-    'mkt_US': 'true',
-    'mkt_CA': 'true',
-    'mkt_MX': 'true',
-    'year_2005': 'true',
-    'ck': '1',
     'idlist': '0',
+    'ck': '1',
 }
 
-headers = {
+headers_2 = {
     'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0',
     'Accept': 'text/plain, */*; q=0.01',
     'Accept-Language': 'en-US,en;q=0.5',
-    # 'Accept-Encoding': 'gzip, deflate, br, zstd',
     'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
     'X-Requested-With': 'XMLHttpRequest',
     'Origin': 'https://www.rockauto.com',
     'Sec-GPC': '1',
     'Connection': 'keep-alive',
-    'Referer': 'https://www.rockauto.com/en/partsearch/?mfr=' + params['mfr'] + '&partnum=' + params['partnum'],
-    # 'Cookie': 'saved_server=eyJuYW1lIjoid3d3NC5yb2NrYXV0by5jb20iLCJkbnMiOiJ3d3c0LnJvY2thdXRvLmNvbSIsInRzIjoiMjAyNS0xMi0xNCAxMTowMTozMSJ9; ID=0; mkt_US=true; mkt_CA=true; mkt_MX=true; year_2005=true; ck=1; lastcathref=https%3A%2F%2Fwww.rockauto.com%2Fen%2Fcatalog%2Faudi%2C2026%2Ca8%2C3.0l%2Bv6%2Bturbocharged%2C3459053%2Ccooling%2Bsystem%2Ccoolant%2B%2F%2Bantifreeze%2C11393; PHPSESSID=ogvitbmitql01ik36428l4fng4; idlist=0',
+    'Referer': f'https://www.rockauto.com/en/partsearch/?mfr={manufacturer}&partnum={part_number}',
     'Sec-Fetch-Dest': 'empty',
     'Sec-Fetch-Mode': 'cors',
     'Sec-Fetch-Site': 'same-origin',
     'Priority': 'u=0',
 }
 
-NCK=nck_input['value']
-FILTER_INPUT=''
-OPTION_CHOICE='0-0-0-1'
-LISTING_DATA_ESSENTIAL=listing_data_input['value']
-SSK=ssk_input['value']
-RA_QUANTITY='99999'
-HAS_WORKING_JS='1'
-ADDPART='1'
-FUNC='cart-addpart'
-PAYLOAD='%7B%7D'
-API_JSON_REQUEST='1'
-SCT_CHECKED='1'
-SC_BEEN_LOADED='true'
-CUR_CART_GROUP_ID='_sidecart'
+data_params = {
+    '_nck': nck_token,
+    'filterinput': '',
+    f'optionchoice[{group_index}]': option_choice_value,
+    f'listing_data_essential[{group_index}]': listing_data_json,
+    f'ssk[{group_index}]': ssk_token,
+    f'raquantity[{group_index}]': quantity,
+    'has_working_js': '1',
+    f'addpart[{group_index}]': '1',
+    'func': 'cart-addpart',
+    'payload': '{}',
+    'api_json_request': '1',
+    'sctchecked': '1',
+    'scbeenloaded': 'true',
+    'curCartGroupID': '_sidecart',
+    '_jnck': jnck_token,
+}
 
-data = (
-'_nck=' + NCK +
-'&filterinput=' + FILTER_INPUT +
-'&optionchoice%5B3%5D=' + OPTION_CHOICE +
-'&listing_data_essential%5B3%5D=' + LISTING_DATA_ESSENTIAL +
-'&ssk%5B3%5D=' + SSK +
-'&raquantity%5B3%5D=' + RA_QUANTITY +
-'&has_working_js=' + HAS_WORKING_JS +
-'&addpart[3]=' + ADDPART +
-'&func=' + FUNC +
-'&payload=' + PAYLOAD +
-'&api_json_request=' + API_JSON_REQUEST +
-'&sctchecked=' + SCT_CHECKED +
-'&scbeenloaded=' + SC_BEEN_LOADED +
-'&curCartGroupID=' + CUR_CART_GROUP_ID
-)
+response_2 = requests.post('https://www.rockauto.com/catalog/catalogapi.php', 
+                          cookies=cookies, 
+                          headers=headers_2, 
+                          data=data_params)
 
-print(data, file=sys.stderr)
-
-response = requests.post('https://www.rockauto.com/catalog/catalogapi.php', cookies=cookies, headers=headers, data=data)
-soup = BeautifulSoup(response.content, 'html.parser')
-print(soup.prettify())
+print(response_2.content.decode('utf-8', errors='ignore'))
