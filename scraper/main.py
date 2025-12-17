@@ -75,30 +75,34 @@ def click_elements_by_car_brand():
                 brand_div.locator('> div.nchildren').wait_for(state='visible', timeout=5000)
 
                 # processing years
-                years = []
-                logger.info('search years')
+                def _get_years():
+                    years = []
+                    logger.info('search years')
 
-                years_divs_group = brand_div.locator('> div.nchildren').first
-                years_divs = years_divs_group.locator('> div.ranavnode').all()
+                    years_divs_group = brand_div.locator('> div.nchildren').first
+                    years_divs = years_divs_group.locator('> div.ranavnode').all()
 
-                logger.info(f'yearsdivs len: {len(years_divs)}')
+                    logger.info(f'yearsdivs len: {len(years_divs)}')
 
-                for year_div in years_divs:
-                    # Get only the year label, not all nested content
-                    year_label = year_div.locator('td.nlabel a').first
-                    year_text = year_label.text_content().strip()
+                    for year_div in years_divs:
 
-                    if year_text:
-                        div_id = year_div.get_attribute('id')
-                        year_dict = {
-                            'year': year_text,
-                            'div_id': div_id
-                        }
-                        years.append(year_dict)
-                        logger.info(f'year: {year_text}, div_id: {div_id}')
-                    else:
-                        logger.error('havent found anything')
-                        continue
+                        # Get only the year label, not all nested content
+                        year_label = year_div.locator('td.nlabel a').first
+                        year_text = year_label.text_content().strip()
+
+                        if year_text:
+                            div_id = year_div.get_attribute('id')
+                            year_dict = {
+                                'year': year_text,
+                                'div_id': div_id
+                            }
+                            years.append(year_dict)
+                            logger.info(f'year: {year_text}, div_id: {div_id}')
+                        else:
+                            logger.error('havent found anything')
+                            continue
+                    return years
+                years = _get_years()
 
                 for year in years:
                     print(year)
@@ -397,36 +401,39 @@ def click_elements_by_car_brand():
 
                                         # description and attributes fetching section 
 
-                                        logger.info('checking for more info link for the part to extract description and attributes')
+                                        # logger.info('checking for more info link for the part to extract description and attributes')
 
-                                        if part_div_element.locator('a.ra-btn-moreinfo').count() > 0:    
-                                            info_btn = part_div_element.locator('a.ra-btn-moreinfo').first
-                                            # logger.info(f'info link: {info_link}')
-                                            # info_btn.click()
-                                            # time.sleep(10)
-                                            # all_pages = page.context.pages
-                                            # html_content = all_pages[1].content()
-                                            # all_pages[1].close()  # close the new tab after parsing all the data
-                                            with context.expect_page() as new_page_info:
-                                                info_btn.click()
-                                            new_page = new_page_info.value
+                                        # if part_div_element.locator('a.ra-btn-moreinfo').count() > 0:    
+                                        #     info_btn = part_div_element.locator('a.ra-btn-moreinfo').first
+                                        #     # logger.info(f'info link: {info_link}')
+                                        #     # info_btn.click()
+                                        #     # time.sleep(10)
+                                        #     # all_pages = page.context.pages
+                                        #     # html_content = all_pages[1].content()
+                                        #     # all_pages[1].close()  # close the new tab after parsing all the data
+                                        #     with context.expect_page() as new_page_info:
+                                        #         info_btn.click()
+                                        #     new_page = new_page_info.value
 
-                                            new_page.wait_for_load_state(state='domcontentloaded')
+                                        #     new_page.wait_for_load_state(state='domcontentloaded')
 
-                                            new_page_html_content = new_page.content()
+                                        #     new_page_html_content = new_page.content()
 
-                                            new_page.close()
+                                        #     new_page.close()
 
-                                            attributes, description = extract_description_and_attributes(new_page_html_content)
+                                        #     attributes, description = extract_description_and_attributes(new_page_html_content)
                                             
-                                        else:
-                                            attributes = None
-                                            description = None
-                                            logger.info('no info link found for the part, skipping description and attributes')
+                                        # else:
+                                        #     attributes = None
+                                        #     description = None
+                                        #     logger.info('no info link found for the part, skipping description and attributes')
                                         
                                         if stock_status:
                                             available_quantity = 'tobescraped' # will be handled with separate logic but for it i need to add every single thing into the cart
                                         
+                                        attributes = 'to be scraped'
+                                        description = 'to be scraped'
+
                                         supplier_sku = 'to be determined later with the client' 
 
                                         part_dict = {
@@ -474,8 +481,7 @@ def click_elements_by_car_brand():
                                     11. attributes
                                     12. vehicle_fitment
                                     '''
-                    brand_icon_td.click()
-                    logger.info(f'finished processing brand {brand}')
+                page.goto('https://www.rockauto.com/')
         except ScrapingLimitReached:
             logger.info('scraping limit reached, stopping the process')
         except Exception as e:
