@@ -125,3 +125,6 @@ response_2 = requests.post('https://www.rockauto.com/catalog/catalogapi.php',
                           data=data_params)
 
 print(response_2.content.decode('utf-8', errors='ignore'))
+
+with open('scraper_quantity/response.json', 'w') as f:
+    json.dump(response_2.json(), f, indent=2)
