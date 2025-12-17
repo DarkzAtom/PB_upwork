@@ -323,146 +323,149 @@ def click_elements_by_car_brand():
                                         logger.info(f'No parts group found for subcategory {subcategory["subcategory"]}')
                                         continue
 
-                                    
+                                    part_html_content = parts_group_div.inner_html()
+                                    soup = BeautifulSoup(part_html_content, 'html.parser')
 
-                                    part_divs = parts_group_div.locator('> tbody.listing-inner').all()
-                                    logger.info(f'found {len(part_divs)} parts in subcategory {subcategory["subcategory"]}')
-                                    for part_div in part_divs:
-                                        part_label = part_div.locator('span.listing-final-manufacturer').first
-                                        part_text = part_label.text_content().strip()
 
-                                        if part_text:
-                                            logger.info(f'successfully found the name of the manufacturer of the part {part_text}')
-                                            part_div_id = part_div.get_attribute('id')
-                                            part_dict = {
-                                                'part': part_text,
-                                                'part_div_id': part_div_id
-                                            }
-                                            parts.append(part_dict)
-                                        else:
-                                            logger.info('cant find a text in the part element')
-                                            continue
+                                    # part_divs = parts_group_div.locator('> tbody.listing-inner').all()
+                                    part_divs = soup.select('tbody.listing-inner')
+                                    # logger.info(f'found {len(part_divs)} parts in subcategory {subcategory["subcategory"]}')
+                                    # for part_div in part_divs:
+                                    #     part_label = part_div.locator('span.listing-final-manufacturer').first
+                                    #     part_text = part_label.text_content().strip()
 
-                                    for part in parts:
+                                    #     if part_text:
+                                    #         logger.info(f'successfully found the name of the manufacturer of the part {part_text}')
+                                    #         part_div_id = part_div.get_attribute('id')
+                                    #         part_dict = {
+                                    #             'part': part_text,
+                                    #             'part_div_id': part_div_id
+                                    #         }
+                                    #         parts.append(part_dict)
+                                    #     else:
+                                    #         logger.info('cant find a text in the part element')
+                                    #         continue
 
-                                        # if len(parts_final_list) > 100:
-                                        #     logger.info('reached 100 parts, stopping the scraping')
-                                        #     raise ScrapingLimitReached() 
 
-                                        logger.info(f"working with part {part['part']} with div id {part['part_div_id']}")
-                                        escaped_part_id = part['part_div_id'].replace('[', '\\[').replace(']', '\\]')
-                                        part_div_element = page.locator(f'tbody#{escaped_part_id}').first
-                                        part_div_element.highlight()
+                                    # for part in parts:
+                                    #     # if len(parts_final_list) > 100:
+                                    #     #     logger.info('reached 100 parts, stopping the scraping')
+                                    #     #     raise ScrapingLimitReached() 
+
+                                    #     logger.info(f"working with part {part['part']} with div id {part['part_div_id']}")
+                                    #     escaped_part_id = part['part_div_id'].replace('[', '\\[').replace(']', '\\]')
+                                    #     part_div_element = page.locator(f'tbody#{escaped_part_id}').first
+                                    #     part_div_element.highlight()
 
                                         
-                                        part_number  = part_div_element.locator('span.listing-final-partnumber').first.text_content().strip()
-                                        logger.info(f'current part number: {part_number}')
+                                    #     part_number  = part_div_element.locator('span.listing-final-partnumber').first.text_content().strip()
+                                    #     logger.info(f'current part number: {part_number}')
 
-                                        manufacturer = part_div_element.locator('span.listing-final-manufacturer').first.text_content().strip()
-                                        logger.info(f'current manufacturer: {manufacturer}')
+                                    #     manufacturer = part_div_element.locator('span.listing-final-manufacturer').first.text_content().strip()
+                                    #     logger.info(f'current manufacturer: {manufacturer}')
 
-                                        if part_div_element.locator('img.listing-inline-image').count() > 0:
-                                            images_link  = part_div_element.locator('img.listing-inline-image').first.get_attribute('src')
-                                        else:
-                                            images_link = None
-                                        logger.info(f'current image link: {images_link}')
+                                    #     if part_div_element.locator('img.listing-inline-image').count() > 0:
+                                    #         images_link  = part_div_element.locator('img.listing-inline-image').first.get_attribute('src')
+                                    #     else:
+                                    #         images_link = None
+                                    #     logger.info(f'current image link: {images_link}')
 
-                                        if part_div_element.locator('span.span-link-underline-remover').count() > 0:
-                                            name = part_div_element.locator('span.span-link-underline-remover').first.text_content().strip()
-                                        else:
-                                            name = None
-                                        logger.info(f'current part name: {name}')
+                                    #     if part_div_element.locator('span.span-link-underline-remover').count() > 0:
+                                    #         name = part_div_element.locator('span.span-link-underline-remover').first.text_content().strip()
+                                    #     else:
+                                    #         name = None
+                                    #     logger.info(f'current part name: {name}')
                                         
                                         
-                                        if part_div_element.locator('span.listing-total').count() > 0:
-                                            text = part_div_element.locator('span.listing-total').first.text_content().strip()
-                                            matches = re.findall(r'\d+\.?\d*', text)
-                                            if matches:
-                                                base_price = matches[0]
-                                            else:   
-                                                base_price = text
-                                        else:
-                                            base_price = None
-                                        if base_price == 'Out of Stock':
-                                            stock_status = False
-                                        else:
-                                            stock_status = True
-                                        currency = part_div_element.locator('span.listing-total').first.text_content().strip().split(r'+d')[0]
-                                        if not currency:
-                                            currency = None
+                                    #     if part_div_element.locator('span.listing-total').count() > 0:
+                                    #         text = part_div_element.locator('span.listing-total').first.text_content().strip()
+                                    #         matches = re.findall(r'\d+\.?\d*', text)
+                                    #         if matches:
+                                    #             base_price = matches[0]
+                                    #         else:   
+                                    #             base_price = text
+                                    #     else:
+                                    #         base_price = None
+                                    #     if base_price == 'Out of Stock':
+                                    #         stock_status = False
+                                    #     else:
+                                    #         stock_status = True
+                                    #     currency = part_div_element.locator('span.listing-total').first.text_content().strip().split(r'+d')[0]
+                                    #     if not currency:
+                                    #         currency = None
 
 
-                                        if part_div_element.locator('span.pack_size_box').count() > 0:
-                                            pack_size = part_div_element.locator('span.pack_size_box').first.text_content().strip()
-                                        else:
-                                            pack_size = None
+                                    #     if part_div_element.locator('span.pack_size_box').count() > 0:
+                                    #         pack_size = part_div_element.locator('span.pack_size_box').first.text_content().strip()
+                                    #     else:
+                                    #         pack_size = None
                                         
 
 
-                                        # description and attributes fetching section 
+                                    #     # description and attributes fetching section 
 
-                                        # logger.info('checking for more info link for the part to extract description and attributes')
+                                    #     # logger.info('checking for more info link for the part to extract description and attributes')
 
-                                        # if part_div_element.locator('a.ra-btn-moreinfo').count() > 0:    
-                                        #     info_btn = part_div_element.locator('a.ra-btn-moreinfo').first
-                                        #     # logger.info(f'info link: {info_link}')
-                                        #     # info_btn.click()
-                                        #     # time.sleep(10)
-                                        #     # all_pages = page.context.pages
-                                        #     # html_content = all_pages[1].content()
-                                        #     # all_pages[1].close()  # close the new tab after parsing all the data
-                                        #     with context.expect_page() as new_page_info:
-                                        #         info_btn.click()
-                                        #     new_page = new_page_info.value
+                                    #     # if part_div_element.locator('a.ra-btn-moreinfo').count() > 0:    
+                                    #     #     info_btn = part_div_element.locator('a.ra-btn-moreinfo').first
+                                    #     #     # logger.info(f'info link: {info_link}')
+                                    #     #     # info_btn.click()
+                                    #     #     # time.sleep(10)
+                                    #     #     # all_pages = page.context.pages
+                                    #     #     # html_content = all_pages[1].content()
+                                    #     #     # all_pages[1].close()  # close the new tab after parsing all the data
+                                    #     #     with context.expect_page() as new_page_info:
+                                    #     #         info_btn.click()
+                                    #     #     new_page = new_page_info.value
 
-                                        #     new_page.wait_for_load_state(state='domcontentloaded')
+                                    #     #     new_page.wait_for_load_state(state='domcontentloaded')
 
-                                        #     new_page_html_content = new_page.content()
+                                    #     #     new_page_html_content = new_page.content()
 
-                                        #     new_page.close()
+                                    #     #     new_page.close()
 
-                                        #     attributes, description = extract_description_and_attributes(new_page_html_content)
+                                    #     #     attributes, description = extract_description_and_attributes(new_page_html_content)
                                             
-                                        # else:
-                                        #     attributes = None
-                                        #     description = None
-                                        #     logger.info('no info link found for the part, skipping description and attributes')
+                                    #     # else:
+                                    #     #     attributes = None
+                                    #     #     description = None
+                                    #     #     logger.info('no info link found for the part, skipping description and attributes')
                                         
-                                        if stock_status:
-                                            available_quantity = 'tobescraped' # will be handled with separate logic but for it i need to add every single thing into the cart
+                                    #     if stock_status:
+                                    #         available_quantity = 'tobescraped' # will be handled with separate logic but for it i need to add every single thing into the cart
                                         
-                                        attributes = 'to be scraped'
-                                        description = 'to be scraped'
+                                    #     attributes = 'to be scraped'
+                                    #     description = 'to be scraped'
 
-                                        supplier_sku = 'to be determined later with the client' 
+                                    #     supplier_sku = 'to be determined later with the client' 
 
-                                        part_dict = {
-                                            'part_number': part_number,
-                                            'manufacturer': manufacturer,
-                                            'category': category['category'],
-                                            'subcategory': subcategory['subcategory'],
-                                            'images_link': images_link,
-                                            'attributes': attributes if attributes else None,
-                                            'car_manufacturer': brand,
-                                            'car_year': year['year'],
-                                            'car_model': model['model'],
-                                            'car_submodel': submodel['submodel'],
-                                            'name': name if name else None,
-                                            'description': description if description else None,
-                                            'base_price': base_price,
-                                            'currency': currency,
-                                            'available_quantity': available_quantity,
-                                            'stock_status': stock_status,
-                                            'supplier_sku': supplier_sku if supplier_sku else None,
-                                            'pack_size': pack_size
-                                        }
+                                    part_dict = {
+                                        'part_number': part_number,
+                                        'manufacturer': manufacturer,
+                                        'category': category['category'],
+                                        'subcategory': subcategory['subcategory'],
+                                        'images_link': images_link,
+                                        'attributes': attributes if attributes else None,
+                                        'car_manufacturer': brand,
+                                        'car_year': year['year'],
+                                        'car_model': model['model'],
+                                        'car_submodel': submodel['submodel'],
+                                        'name': name if name else None,
+                                        'description': description if description else None,
+                                        'base_price': base_price,
+                                        'currency': currency,
+                                        'available_quantity': available_quantity,
+                                        'stock_status': stock_status,
+                                        'supplier_sku': supplier_sku if supplier_sku else None,
+                                        'pack_size': pack_size
+                                    }
 
-                                        for key, value in part_dict.items():
-                                            logger.info(f'{key}: {value}')
+                                    for key, value in part_dict.items():
+                                        logger.info(f'{key}: {value}')
 
-                                        parts_final_list.append(part_dict)
+                                    parts_final_list.append(part_dict)
 
-                                        logger.info('added part info to final parts list')
+                                    logger.info('added part info to final parts list')
 
 
 
