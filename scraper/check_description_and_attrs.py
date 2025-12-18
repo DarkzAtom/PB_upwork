@@ -66,7 +66,7 @@ def test_check_description_and_attributes():
 
 
 
-def check_description_and_attributes_through_requests():
+def check_description_and_attributes_through_requests():   #  main function for now
     import requests
     import sys
     import json

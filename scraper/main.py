@@ -6,6 +6,9 @@ import random
 import re
 
 
+MAX_SCRAPED_PARTS = 300
+
+
 ################# LOGGER ########################
 
 logging.basicConfig(
@@ -62,20 +65,24 @@ def click_elements_by_car_brand():
         
         try:
             for brand in brands:
-                logger.info(f'brand name: {brand}')
 
-                # Find the brand's div element - use .first to get only the top-level brand div
-                brand_div = page.locator(f'div.ranavnode:has(td.nlabel a:text-is("{brand}"))').first
+                def _get_years_by_brand(avoid_clicking=False):
+                    logger.info(f'brand name: {brand}')
 
-                # Click to expand brand (click the icon, not the label)
-                brand_icon_td = brand_div.locator('td.niconspace a').first
-                brand_icon_td.click()
+                    # Find the brand's div element - use .first to get only the top-level brand div
+                    brand_div = page.locator(f'div.ranavnode:has(td.nlabel a:text-is("{brand}"))').first
 
-                # Wait for direct children to load (use > to select only direct child)
-                brand_div.locator('> div.nchildren').wait_for(state='visible', timeout=5000)
+                    if not avoid_clicking:
+                        
+                        # Click to expand brand (click the icon, not the label)
+                        brand_icon_td = brand_div.locator('td.niconspace a').first
+                        brand_icon_td.click()
 
-                # processing years
-                def _get_years():
+                        # Wait for direct children to load (use > to select only direct child)
+                        brand_div.locator('> div.nchildren').wait_for(state='visible', timeout=5000)
+
+                    # processing years
+                    
                     years = []
                     logger.info('search years')
 
@@ -101,13 +108,23 @@ def click_elements_by_car_brand():
                         else:
                             logger.error('havent found anything')
                             continue
-                    return years
-                years = _get_years()
+                        if years:
+                            years_count = len(years)
+                    return years, years_count
+                
+                years, years_count = _get_years_by_brand()
+                
 
-                for year in years:
-                    print(year)
+                for year_idx in range(years_count):
+                    
+                    if year_idx == 0:
+                        avoid_clicking = True
+                        years, _ = _get_years_by_brand(avoid_clicking)
+                    else:
+                        years, _ = _get_years_by_brand()
 
-                for year in years:
+                    year = years[year_idx]
+
                     # Use the specific div ID to locate and click
                     # Escape the brackets in the ID for CSS selector
                     escaped_id = year['div_id'].replace('[', '\\[').replace(']', '\\]')
@@ -328,14 +345,26 @@ def click_elements_by_car_brand():
 
 
                                     # part_divs = parts_group_div.locator('> tbody.listing-inner').all()
-                                    part_divs = soup.select('tbody.listing-inner')
-                                    # logger.info(f'found {len(part_divs)} parts in subcategory {subcategory["subcategory"]}')
-                                    # for part_div in part_divs:
+                                    part_divs = soup.find_all('tbody', class_='listing-inner', recursive=False)
+                                    logger.info(f'found {len(part_divs)} parts in subcategory {subcategory["subcategory"]}')
+                                    for part_div in part_divs:
                                     #     part_label = part_div.locator('span.listing-final-manufacturer').first
+                                        part_label = part_div.select_one('span.listing-final-manufacturer')
                                     #     part_text = part_label.text_content().strip()
-
-                                    #     if part_text:
+                                        part_text = part_label.get_text(strip=True) if part_label else None
+                                        if part_text:
+                                            logger.info(f'successfully found the name of the manufacturer of the part {part_text}')
+                                            part_div_id = part_div.get('id')
+                                            part_dict = {
+                                                'part': part_text,
+                                                'part_div_id': part_div_id
+                                            }
+                                            parts.append(part_dict)
+                                        else:
+                                            logger.info('cant find a text in the part element')
+                                            continue
                                     #         logger.info(f'successfully found the name of the manufacturer of the part {part_text}')
+                                        logger.info(f'successfully found the name of the manufacturer of the part {part_text}')
                                     #         part_div_id = part_div.get_attribute('id')
                                     #         part_dict = {
                                     #             'part': part_text,
@@ -346,7 +375,16 @@ def click_elements_by_car_brand():
                                     #         logger.info('cant find a text in the part element')
                                     #         continue
 
+                                    for part in parts:
+                                        if len(parts_final_list) > MAX_SCRAPED_PARTS:
+                                            logger.info(f'reached {MAX_SCRAPED_PARTS} parts, stopping the scraping')
+                                            raise ScrapingLimitReached()
+                                        logger.info(f"working with part {part['part']} with div id {part['part_div_id']}")
+                                        escaped_part_id = part['part_div_id'].replace('[', '\\[').replace(']', '\\]')
+                                        part_div_element = soup.find('tbody', id=part['part_div_id'])
 
+                                        part_number = part_div_element.find('span', class_='listing-final-partnumber').get_text(strip=True) if part_div_element.find('span', class_='listing-final-partnumber') else None
+                                        logger.info(f'current part number: {part_number}')
                                     # for part in parts:
                                     #     # if len(parts_final_list) > 100:
                                     #     #     logger.info('reached 100 parts, stopping the scraping')
@@ -361,20 +399,44 @@ def click_elements_by_car_brand():
                                     #     part_number  = part_div_element.locator('span.listing-final-partnumber').first.text_content().strip()
                                     #     logger.info(f'current part number: {part_number}')
 
+                                        manufacturer = part_div_element.find('span', class_='listing-final-manufacturer').get_text(strip=True) if part_div_element.find('span', class_='listing-final-manufacturer') else None
+                                        logger.info(f'current manufacturer: {manufacturer}')
                                     #     manufacturer = part_div_element.locator('span.listing-final-manufacturer').first.text_content().strip()
                                     #     logger.info(f'current manufacturer: {manufacturer}')
-
+                                        images_link = part_div_element.find('img', class_='listing-inline-image')['src'] if part_div_element.find('img', class_='listing-inline-image') else None
+                                        logger.info(f'current image link: {images_link}')
                                     #     if part_div_element.locator('img.listing-inline-image').count() > 0:
                                     #         images_link  = part_div_element.locator('img.listing-inline-image').first.get_attribute('src')
                                     #     else:
                                     #         images_link = None
                                     #     logger.info(f'current image link: {images_link}')
-
+                                        name = part_div_element.find('span', class_='span-link-underline-remover').get_text(strip=True) if part_div_element.find('span', class_='span-link-underline-remover') else None
+                                        logger.info(f'current part name: {name}')
                                     #     if part_div_element.locator('span.span-link-underline-remover').count() > 0:
                                     #         name = part_div_element.locator('span.span-link-underline-remover').first.text_content().strip()
                                     #     else:
                                     #         name = None
                                     #     logger.info(f'current part name: {name}')
+
+                                        text = part_div_element.find('span', class_='listing-total').get_text(strip=True) if part_div_element.find('span', class_='listing-total') else None
+                                        matches = re.findall(r'\d+\.?\d*', text)
+                                        matches = re.findall(r'\d+\.?\d*', text) if text else []
+                                        if matches:
+                                            base_price = matches[0]
+                                        elif text is None:
+                                            base_price = None
+                                        else:   
+                                            base_price = text
+                                        
+                                        if base_price == 'Out of Stock':
+                                            stock_status = False
+                                        else:
+                                            stock_status = True
+                                        
+                                        currency = part_div_element.find('span', class_='listing-total').get_text(strip=True).split(r'+d')[0] if part_div_element.find('span', class_='listing-total') else None
+                                        if not currency:
+                                            currency = None
+
                                         
                                         
                                     #     if part_div_element.locator('span.listing-total').count() > 0:
@@ -393,6 +455,8 @@ def click_elements_by_car_brand():
                                     #     currency = part_div_element.locator('span.listing-total').first.text_content().strip().split(r'+d')[0]
                                     #     if not currency:
                                     #         currency = None
+
+                                        pack_size = part_div_element.find('span', class_='pack_size_box').get_text(strip=True) if part_div_element.find('span', class_='pack_size_box') else None
 
 
                                     #     if part_div_element.locator('span.pack_size_box').count() > 0:
@@ -431,60 +495,66 @@ def click_elements_by_car_brand():
                                     #     #     description = None
                                     #     #     logger.info('no info link found for the part, skipping description and attributes')
                                         
-                                    #     if stock_status:
-                                    #         available_quantity = 'tobescraped' # will be handled with separate logic but for it i need to add every single thing into the cart
+                                        if stock_status:
+                                            available_quantity = 'tobescraped' # will be handled with separate logic but for it i need to add every single thing into the cart
                                         
-                                    #     attributes = 'to be scraped'
-                                    #     description = 'to be scraped'
+                                        attributes = 'to be scraped'
+                                        description = 'to be scraped'
 
-                                    #     supplier_sku = 'to be determined later with the client' 
+                                        supplier_sku = 'to be determined later with the client' 
 
-                                    part_dict = {
-                                        'part_number': part_number,
-                                        'manufacturer': manufacturer,
-                                        'category': category['category'],
-                                        'subcategory': subcategory['subcategory'],
-                                        'images_link': images_link,
-                                        'attributes': attributes if attributes else None,
-                                        'car_manufacturer': brand,
-                                        'car_year': year['year'],
-                                        'car_model': model['model'],
-                                        'car_submodel': submodel['submodel'],
-                                        'name': name if name else None,
-                                        'description': description if description else None,
-                                        'base_price': base_price,
-                                        'currency': currency,
-                                        'available_quantity': available_quantity,
-                                        'stock_status': stock_status,
-                                        'supplier_sku': supplier_sku if supplier_sku else None,
-                                        'pack_size': pack_size
-                                    }
+                                        info_link = part_div_element.find('a', class_='ra-btn-moreinfo').get('href') if part_div_element.find('a', class_='ra-btn-moreinfo') else None
 
-                                    for key, value in part_dict.items():
-                                        logger.info(f'{key}: {value}')
+                                        part_dict = {
+                                            'part_number': part_number,
+                                            'manufacturer': manufacturer,
+                                            'category': category['category'],
+                                            'subcategory': subcategory['subcategory'],
+                                            'images_link': images_link,
+                                            'attributes': attributes if attributes else None,
+                                            'car_manufacturer': brand,
+                                            'car_year': year['year'],
+                                            'car_model': model['model'],
+                                            'car_submodel': submodel['submodel'],
+                                            'name': name if name else None,
+                                            'description': description if description else None,
+                                            'base_price': base_price,
+                                            'currency': currency,
+                                            'available_quantity': available_quantity,
+                                            'stock_status': stock_status,
+                                            'supplier_sku': supplier_sku if supplier_sku else None,
+                                            'pack_size': pack_size,
+                                            'info_link': info_link
+                                        }
 
-                                    parts_final_list.append(part_dict)
+                                        logger.info('final dict of a part')
+                                        logger.info('###################\n################\n###############')
 
-                                    logger.info('added part info to final parts list')
+                                        for key, value in part_dict.items():
+                                            logger.info(f'{key}: {value}')
+
+                                        parts_final_list.append(part_dict)
+
+                                        logger.info('added part info to final parts list')
 
 
 
 
-                                    '''what is needed to be scraped from a part
-                                    1. part_id
-                                    2. supplier_part_id / catalog_id
-                                    3. brand_id
-                                    4. part_number
-                                    5. normalized_part_number
-                                    6. name 
-                                    7. description
-                                    8. category_id
-                                    9. subcategory_id
-                                    10. images
-                                    11. attributes
-                                    12. vehicle_fitment
-                                    '''
-                page.goto('https://www.rockauto.com/')
+                                        '''what is needed to be scraped from a part
+                                        1. part_id
+                                        2. supplier_part_id / catalog_id
+                                        3. brand_id
+                                        4. part_number
+                                        5. normalized_part_number
+                                        6. name 
+                                        7. description
+                                        8. category_id
+                                        9. subcategory_id
+                                        10. images
+                                        11. attributes
+                                        12. vehicle_fitment
+                                        '''
+                    page.goto('https://www.rockauto.com/')
         except ScrapingLimitReached:
             logger.info('scraping limit reached, stopping the process')
         except Exception as e:
@@ -495,7 +565,7 @@ def click_elements_by_car_brand():
 
         '''save to the csv the final list'''
 
-        save_to_csv(parts_final_list, 'rockauto_parts.csv')
+        save_to_csv(parts_final_list, 'scraper/rockauto_parts.csv')
         
     end_time = time.perf_counter()
     elapsed_time = end_time - start_time
