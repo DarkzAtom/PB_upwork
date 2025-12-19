@@ -6,7 +6,7 @@ import random
 import re
 
 
-MAX_SCRAPED_PARTS = 300
+MAX_SCRAPED_PARTS = 0
 
 
 ################# LOGGER ########################
@@ -32,8 +32,19 @@ class ScrapingLimitReached(Exception):
 def click_elements_by_car_brand():
     start_time = time.perf_counter()
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=False)
-        context = browser.new_context()
+        browser = playwright.chromium.launch(
+            headless=False,
+            args=[
+                '--disable-blink-features=AutomationControlled',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--no-sandbox'
+            ]
+            )
+        context = browser.new_context( 
+            bypass_csp=True,    
+            java_script_enabled=True,  # Only if you need JS
+        )
 
         page = context.new_page()
 
@@ -312,6 +323,7 @@ def click_elements_by_car_brand():
                                         continue
 
                                 for subcategory in subcategories:
+                                    logger.info(f'scraped parts so far: {len(parts_final_list)}')
                                     logger.info(f"working with subcategory {subcategory['subcategory']} with div id {subcategory['subcategory_div_id']}")
 
                                     escaped_subcategory_id = subcategory['subcategory_div_id'].replace('[', '\\[').replace(']', '\\]')
@@ -376,7 +388,7 @@ def click_elements_by_car_brand():
                                     #         continue
 
                                     for part in parts:
-                                        if len(parts_final_list) > MAX_SCRAPED_PARTS:
+                                        if len(parts_final_list) > MAX_SCRAPED_PARTS and MAX_SCRAPED_PARTS > 0:
                                             logger.info(f'reached {MAX_SCRAPED_PARTS} parts, stopping the scraping')
                                             raise ScrapingLimitReached()
                                         logger.info(f"working with part {part['part']} with div id {part['part_div_id']}")
@@ -558,7 +570,9 @@ def click_elements_by_car_brand():
         except ScrapingLimitReached:
             logger.info('scraping limit reached, stopping the process')
         except Exception as e:
-            logger.error(f'Unexpected error occurred: {e.__traceback__.tb_lineno} - {str(e)}')                            
+            logger.error(f'Unexpected error occurred: {e.__traceback__.tb_lineno} - {str(e)}')
+        finally:
+            logger.info(f'total number of scraped parts (unsaved due to the crash) {len(parts_final_list)}')                            
 
         context.close()
         browser.close()
