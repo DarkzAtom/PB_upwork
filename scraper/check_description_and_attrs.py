@@ -2,7 +2,9 @@ from playwright.sync_api import sync_playwright
 from main import logger
 from bs4 import BeautifulSoup
 import time
-
+import csv
+import sys
+import threading
 
 def check_description(part_url: str):
     with sync_playwright() as p:
@@ -66,12 +68,10 @@ def test_check_description_and_attributes():
 
 
 
-def check_description_and_attributes_through_requests():   #  main function for now
+def check_description_and_attributes_through_requests(url):   #  main function for now
     import requests
     import sys
     import json
-
-    url = 'https://www.rockauto.com/en/moreinfo.php?pk=15097217&cc=951060&pt=8900&jsn=14500'
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
@@ -115,6 +115,43 @@ def check_description_and_attributes_through_requests():   #  main function for 
         attributes = None
 
 
+def do_dirty(urls):
+    error_urls = []
+    for i, url in enumerate(urls):
+        print(f'{i}: {url}', file=sys.stderr)
+        try:
+            check_description_and_attributes_through_requests(url)
+        except Exception as e:
+            error_urls.append({ 'url': url, 'error': e})
+    print(f'Urls: {len(urls)}')
+    print(f'Errors: {len(error_urls)}\n=================')
+    for error_url in error_urls:
+        print(f"{error_url['url']}: {error_url['error']}")
 
-if __name__ == "__main__":
-    check_description_and_attributes_through_requests()
+def read_urls(start, count):
+    urls = []
+    with open('rockauto_parts.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        for i, row in enumerate(reader):
+            if i < start:
+                continue
+            if i >= count + start:
+                break
+            urls.append(row['info_link'])
+    return urls
+
+if __name__ == '__main__':
+    thread_count = 1
+    chunk_size = 300
+
+    urls = []
+    for i in range(thread_count):
+        urls.append(read_urls(i * chunk_size, chunk_size))
+
+    threads = [threading.Thread(target=do_dirty, args=(urls[i],)) for i in range(thread_count)]
+
+    start = time.time()
+    for t in threads: t.start()
+    for t in threads: t.join()
+    end = time.time()
+    print(f'Thread count: {thread_count}\nChunk_size: {chunk_size}\nTime: {end - start}s')
