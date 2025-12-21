@@ -1,0 +1,40 @@
+
+
+ 
+
+task is to scrape brand -> year -> model -> submodel -> categories -> subcategories -> parts etc
+
+everything to a single list
+
+final list = []
+
+scrape initial brands
+
+for loop brand
+	click	
+	locate years
+	collect years divs
+	for year
+		click
+		locate model
+		collect model
+		for model
+			click
+			locate subcategories
+			collect subcategories
+			for subcategory
+				click
+				locate parts
+				collect parts
+					for part
+						scrape all the data we need
+						dicttoappend = {
+							brand: brand
+							year: year
+							model: model
+							subcategory: subcategory
+							part: {
+								1: 1
+								2: 2
+}
+							}
