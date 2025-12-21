@@ -177,10 +177,12 @@ async def click_elements_by_car_brand():
                                     year_to_click_for_models = years_for_models[year_idx]
 
                                     year_div = await _click_year(working_tab, year_to_click_for_models)
-                                    
+
                                 # Get only the model label text
                                 model_label = model_div.locator('td.nlabel a').first
                                 model_text = await model_label.text_content()
+ 
+# test to check
 
                                 if model_text:
                                     model_text = model_text.strip()
