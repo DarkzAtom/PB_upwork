@@ -79,22 +79,48 @@ async def submit_result(page, solved_captcha_text):
         logger.info(f'Some error occured solving captcha: {e}')
 
 
-async def handle_captcha_overlay(page):
-    logger.warning("Captcha detected by background listener! Pausing scrape to solve...")
+async def captcha_monitor(page):
+    """Simple captcha monitor - saves URL and goes back after captcha"""
+    last_url = None
     
-    # 1. Reuse your existing logic
-    captcha_id = await extract_captcha(page)
-    
-    if captcha_id:
-        text = await solve_captcha(page, captcha_id)
-        if text:
-            await submit_result(page, text)
+    while True:
+        try:
+            await asyncio.sleep(0.5)
             
-            # CRITICAL: You must wait for the captcha to disappear 
-            # so the main loop doesn't trigger this handler again immediately.
-            await page.locator('img.captchaimage').wait_for(state="detached", timeout=15000)
-            logger.info("Captcha solved and removed. Resuming scrape.")
-
+            current_url = page.url
+            
+            # Save the last valid URL (not captcha page)
+            if '/scraper' not in current_url:
+                last_url = current_url
+            
+            # If we're on captcha page
+            if '/scraper' in current_url:
+                logger.warning(f'⚠️ CAPTCHA! Was on: {last_url}')
+                
+                # Try to auto-solve
+                captcha_id = await extract_captcha(page)
+                if captcha_id:
+                    captcha_text = await solve_captcha(page, captcha_image_id=captcha_id)
+                    if captcha_text:
+                        await submit_result(page, captcha_text)
+                        await page.wait_for_url(lambda url: '/scraper' not in url, timeout=30000)
+                        logger.info('✅ Auto-solved!')
+                    else:
+                        logger.warning("Waiting for manual solve...")
+                        await page.wait_for_url(lambda url: '/scraper' not in url, timeout=300000)
+                else:
+                    logger.warning("Waiting for manual solve...")
+                    await page.wait_for_url(lambda url: '/scraper' not in url, timeout=300000)
+                
+                # GO BACK to the URL we were on
+                if last_url:
+                    logger.info(f'Going back to: {last_url}')
+                    await page.goto(last_url)
+                    await asyncio.sleep(2)
+                
+        except Exception as e:
+            logger.error(f'Captcha monitor error: {e}')
+            break
 
 async def main_captcha_flow(page):
     # 1. Try to get an ID

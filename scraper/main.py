@@ -5,8 +5,9 @@ import logging
 import random
 import re
 import asyncio
-from captcha import handle_captcha_overlay
+from captcha import captcha_monitor
 from utils import logger
+
 
 
 MAX_SCRAPED_PARTS = 0
@@ -35,12 +36,12 @@ async def click_elements_by_car_brand():
 
         page = await context.new_page()
 
-        await page.add_locator_handler(
-            page.locator('img.captchaimage'),
-            handle_captcha_overlay
-        )
+        # await page.add_locator_handler(        commented out since redundant for now
+        #     page.locator('img.captchaimage'),
+        #     handle_captcha_overlay
+        # )
 
-        await page.goto('https://www.rockauto.com/')
+        await page.goto('https://www.rockauto.com/en/catalog/')
 
         time.sleep(1)
 
@@ -65,6 +66,7 @@ async def click_elements_by_car_brand():
         # processing every brand separately
 
         parts_final_list: list = []
+        failed_years_processing: list = []
         
         try:
             for brand in brands:
@@ -118,118 +120,76 @@ async def click_elements_by_car_brand():
                 
                 _, years_count = await _get_years_by_brand(page)
                 
-                semaphore_years = asyncio.Semaphore(3)
+                semaphore_years = asyncio.Semaphore(5)
                 tasks_years = []
 
+
                 async def _execute_year_in_tab(semaphore, year_idx):
-                        async with semaphore:
-                            logger.info(f'processing year_idx {year_idx}')
+                    async with semaphore:
+                        try:
+                            year = None  # init
+                            monitor_task = None  # init
+                            year_page = None  # init
+
                             year_page = await context.new_page()
+                            monitor_task = asyncio.create_task(captcha_monitor(year_page))
 
-                            await year_page.goto('https://www.rockauto.com')
-
-                            if year_idx == 0:
-                                avoid_clicking = False
-                                years, _ = await _get_years_by_brand(year_page, avoid_clicking)
-                            else:
-                                years, _ = await _get_years_by_brand(year_page)
-
-                            year = years[year_idx]
-
-                            async def _click_year(year_page_to_click, year_to_click):
-                                # Use the specific div ID to locate and click
-                                # Escape the brackets in the ID for CSS selector
-                                escaped_id = year['div_id'].replace('[', '\\[').replace(']', '\\]')
-                                year_div = year_page_to_click.locator(f"div#{escaped_id}")
+                            # Helper function to click year
+                            async def _click_year(page_to_click, year_to_click):
+                                escaped_id = year_to_click['div_id'].replace('[', '\\[').replace(']', '\\]')
+                                year_div = page_to_click.locator(f"div#{escaped_id}")
                                 year_icon = year_div.locator('td.niconspace a').first
-
-
-                                if len(years) > 1:
-                                    await year_icon.click()
-
-
-                                logger.info('clicked year')
-
+                                await year_icon.click()
+                                logger.info(f'clicked year {year_to_click["year"]}')
                                 return year_div
-
+                            
+                            # Get the list of models ONCE at the start
+                            await year_page.goto('https://www.rockauto.com/en/catalog/')
+                            years, _ = await _get_years_by_brand(year_page, avoid_clicking=False)
+                            year = years[year_idx]
                             year_div = await _click_year(year_page, year)
-
-                            # Wait for models to load
                             await year_div.locator('> div.nchildren').wait_for(state='visible', timeout=5000)
-
-                            # processing models
-                            models = []
-
+                            
                             models_divs_group = year_div.locator('> div.nchildren').first
                             models_divs = await models_divs_group.locator('> div.ranavnode').all()
-
-                            logger.info(f'found {len(models_divs)} models')
-
-                            models_count = len(models_divs)
-
+                            
+                            # Extract model info (so we have it even after refresh)
+                            models = []
+                            for model_div in models_divs:
+                                model_text = await model_div.locator('td.nlabel a').first.text_content()
+                                model_div_id = await model_div.get_attribute('id')
+                                models.append({'model': model_text.strip(), 'model_div_id': model_div_id})
+                            
+                            models_count = len(models)
+                            logger.info(f"Found {models_count} models for year {year['year']}")
+                            
+                            # Loop through each model (NO refresh here)
                             for model_idx in range(models_count):
-                                async def _navigate_to_model_after_refresh(working_tab, year_idx, model_idx, brand):
-                                    logger.info('getting to current model after refresh')
-                                    logger.info(f'path:=> brand: {brand} -> year: {years[year_idx]} -> model index: {model_idx}')
-                                    
-                                    years_for_models, years_count_for_models = _get_years_by_brand(working_page=year_page)
-                                    
-                                    year_to_click_for_models = years_for_models[year_idx]
-
-                                    year_div = await _click_year(working_tab, year_to_click_for_models)
-
-                                # Get only the model label text
-                                model_label = model_div.locator('td.nlabel a').first
-                                model_text = await model_label.text_content()
- 
-# test to check
-
-                                if model_text:
-                                    model_text = model_text.strip()
-                                    model_div_id = await model_div.get_attribute('id')
-                                    model_dict = {
-                                        'model': model_text,
-                                        'model_div_id': model_div_id
-                                    }
-                                    models.append(model_dict)
-                                    logger.info(f"added model: {model_dict['model']}, id: {model_div_id}")
-                                else:
-                                    logger.error('havent found anything in models')
-                                    continue
-
-                            for model in models:
-                                logger.info(f"processing model: {model['model']}")
-
-                                # Click the model icon to expand
-                                # Escape the brackets in the ID for CSS selector
-                                escaped_model_id = model['model_div_id'].replace('[', '\\[').replace(']', '\\]')
+                                logger.info(f"Processing model {model_idx + 1}/{models_count}: {models[model_idx]['model']}")
+                                
+                                # Click to expand model
+                                escaped_model_id = models[model_idx]['model_div_id'].replace('[', '\\[').replace(']', '\\]')
                                 model_div_element = year_page.locator(f"div#{escaped_model_id}")
                                 model_icon = model_div_element.locator('td.niconspace a').first
-
-                                if len(models) > 1:
+                                
+                                if models_count > 1:
                                     await model_icon.click()
 
                                 # Wait for submodels to load
                                 try:
                                     await model_div_element.locator('> div.nchildren').wait_for(state='visible', timeout=5000)
                                 except PlaywrightTimeoutError:
-                                    logger.warning(f'No submodels found for {model["model"]}')
+                                    logger.warning(f'No submodels found for {models[model_idx]["model"]}')
                                     continue
 
-
-
-                                # processing submodels (engine configurations)
+                                # Extract submodels info ONCE (so we have it even after refresh)
                                 submodels = []
-
                                 logger.info('processing submodels')
-
                                 submodels_group_div = model_div_element.locator('> div.nchildren').first
                                 submodel_divs = await submodels_group_div.locator('> div.ranavnode').all()
-
                                 logger.info(f'found {len(submodel_divs)} submodels')
 
                                 for submodel_div in submodel_divs:
-                                    # Get only the submodel label text
                                     submodel_label = submodel_div.locator('td.nlabel a').first
                                     submodel_text = await submodel_label.text_content()
 
@@ -246,17 +206,55 @@ async def click_elements_by_car_brand():
                                         logger.error('no text found for submodel')
                                         continue
 
-                                for submodel in submodels:
-                                    logger.info(f'clicking submodel: {submodel["submodel"]}')
+                                submodels_count = len(submodels)
 
-                                    # Click the submodel icon to expand parts
-                                    # Escape the brackets in the ID for CSS selector
-                                    escaped_submodel_id = submodel['submodel_div_id'].replace('[', '\\[').replace(']', '\\]')
-                                    submodel_div_element = year_page.locator(f"div#{escaped_submodel_id}")
-                                    submodel_icon = submodel_div_element.locator('td.niconspace a').first
+                                # NOW loop through each submodel with refresh between
+                                for submodel_idx in range(submodels_count):
+                                    submodel = submodels[submodel_idx]
+                                    logger.info(f'Processing submodel {submodel_idx + 1}/{submodels_count}: {submodel["submodel"]}')
 
-                                    if len(submodels) > 1:
+                                    # REFRESH and re-navigate to this specific submodel
+                                    await year_page.goto('https://www.rockauto.com/en/catalog/')
+                                    
+                                    # Re-expand brand
+                                    years, _ = await _get_years_by_brand(year_page, avoid_clicking=False)
+                                    year = years[year_idx]
+                                    
+                                    # Re-expand year
+                                    year_div = await _click_year(year_page, year)
+                                    await year_div.locator('> div.nchildren').wait_for(state='visible', timeout=5000)
+                                    
+                                    # Re-expand the SPECIFIC model we're working on
+                                    models_divs_group = year_div.locator('> div.nchildren').first
+                                    fresh_models_divs = await models_divs_group.locator('> div.ranavnode').all()
+                                    fresh_models_count = len(fresh_models_divs)
+                                    
+                                    #  Get the specific model by index
+                                    fresh_model_div = fresh_models_divs[model_idx]
+                                    
+                                    fresh_model_icon = fresh_model_div.locator('td.niconspace a').first
+                                    
+                                    if fresh_models_count > 1:
+                                        await fresh_model_icon.click()
+                                    
+                                    #  Wait for submodels to appear
+                                    await fresh_model_div.locator('> div.nchildren').wait_for(state='visible', timeout=5000)
+                                    
+                                    # Get fresh submodels from the fresh model
+                                    fresh_submodels_group = fresh_model_div.locator('> div.nchildren').first
+                                    fresh_submodel_divs = await fresh_submodels_group.locator('> div.ranavnode').all()
+
+                                    # Get the specific submodel by index
+                                    fresh_submodel_div = fresh_submodel_divs[submodel_idx]
+                                    submodel_icon = fresh_submodel_div.locator('td.niconspace a').first
+
+                                    if submodels_count > 1:
                                         await submodel_icon.click()
+
+                                    # Use fresh_submodel_div for the rest
+                                    submodel_div_element = fresh_submodel_div
+                                    
+                                    # ... rest of the code
 
                                     # Wait for parts categories to load
                                     try:
@@ -264,19 +262,14 @@ async def click_elements_by_car_brand():
                                         logger.info(f'Parts loaded for {submodel["submodel"]}')
                                     except PlaywrightTimeoutError:
                                         logger.warning(f'No parts found for {submodel["submodel"]}')
+                                        continue
 
-
-                                    
-
-                                    ######## category processing
-
+                                    ######## category processing (rest of your code stays the same)
                                     categories = []
-
                                     category_group_div = submodel_div_element.locator('> div.nchildren').first
                                     category_divs = await category_group_div.locator('> div.ranavnode').all()
 
                                     for category_div in category_divs:
-                                        #extracting the text from the div
                                         category_label = category_div.locator('td.nlabel a').first
                                         category_text = await category_label.text_content()
 
@@ -296,29 +289,22 @@ async def click_elements_by_car_brand():
                                         logger.info(f"locating and clicking category {category['category']} with the id of {category['category_div_id']}")
 
                                         escaped_category_id = category['category_div_id'].replace('[', '\\[').replace(']', '\\]')
-
                                         category_div_element = year_page.locator(f'div#{escaped_category_id}')
-
                                         category_icon = category_div_element.locator('td.niconspace a').first
-
 
                                         if len(categories) > 1:
                                             logger.info(f"actually clicking for a category icon of {category['category']} of category div element {category['category_div_id']}")
                                             await category_icon.click()
 
-                                        # Wait for parts subcategories to load
                                         try:
                                             await category_div_element.locator('> div.nchildren').wait_for(state='visible', timeout=5000)
                                             logger.info(f'Parts loaded for {category["category"]}')
                                         except PlaywrightTimeoutError:
                                             logger.warning(f'No parts found for {category["category"]}')
+                                            continue
 
-
-                                        
                                         ######## subcategory part #######################
-
                                         subcategories = []
-
                                         subcategories_group_divs = category_div_element.locator('> div.nchildren').first
                                         subcategory_divs = await subcategories_group_divs.locator('> div.ranavnode').all()
 
@@ -355,11 +341,9 @@ async def click_elements_by_car_brand():
                                                 logger.info(f'Parts loaded for {category["category"]}')
                                             except PlaywrightTimeoutError:
                                                 logger.warning(f"No success loading children of the subcategory element {subcategory['subcategory']} by id {subcategory['subcategory_div_id']}")
-
+                                                continue
 
                                             ######## parts processing #######################
-
-
                                             parts = []
                                             parts_group_div = subcategory_div_element.locator('> div.nchildren').first.locator('> div.listings-container').first.locator('> form').first.locator('> div.listing-container-border').locator('> div').first.locator('> table').first
                                             if not parts_group_div:
@@ -369,14 +353,11 @@ async def click_elements_by_car_brand():
                                             part_html_content = await parts_group_div.inner_html()
                                             soup = BeautifulSoup(part_html_content, 'html.parser')
 
-
-                                            # part_divs = parts_group_div.locator('> tbody.listing-inner').all()
                                             part_divs = soup.find_all('tbody', class_='listing-inner', recursive=False)
                                             logger.info(f'found {len(part_divs)} parts in subcategory {subcategory["subcategory"]}')
+                                            
                                             for part_div in part_divs:
-                                            #     part_label = part_div.locator('span.listing-final-manufacturer').first
                                                 part_label = part_div.select_one('span.listing-final-manufacturer')
-                                            #     part_text = part_label.text_content().strip()
                                                 part_text = part_label.get_text(strip=True) if part_label else None
                                                 if part_text:
                                                     logger.info(f'successfully found the name of the manufacturer of the part {part_text}')
@@ -389,63 +370,28 @@ async def click_elements_by_car_brand():
                                                 else:
                                                     logger.info('cant find a text in the part element')
                                                     continue
-                                            #         logger.info(f'successfully found the name of the manufacturer of the part {part_text}')
-                                                logger.info(f'successfully found the name of the manufacturer of the part {part_text}')
-                                            #         part_div_id = part_div.get_attribute('id')
-                                            #         part_dict = {
-                                            #             'part': part_text,
-                                            #             'part_div_id': part_div_id
-                                            #         }
-                                            #         parts.append(part_dict)
-                                            #     else:
-                                            #         logger.info('cant find a text in the part element')
-                                            #         continue
 
                                             for part in parts:
                                                 if len(parts_final_list) > MAX_SCRAPED_PARTS and MAX_SCRAPED_PARTS > 0:
                                                     logger.info(f'reached {MAX_SCRAPED_PARTS} parts, stopping the scraping')
                                                     raise ScrapingLimitReached()
+                                                
                                                 logger.info(f"working with part {part['part']} with div id {part['part_div_id']}")
-                                                escaped_part_id = part['part_div_id'].replace('[', '\\[').replace(']', '\\]')
                                                 part_div_element = soup.find('tbody', id=part['part_div_id'])
 
                                                 part_number = part_div_element.find('span', class_='listing-final-partnumber').get_text(strip=True) if part_div_element.find('span', class_='listing-final-partnumber') else None
                                                 logger.info(f'current part number: {part_number}')
-                                            # for part in parts:
-                                            #     # if len(parts_final_list) > 100:
-                                            #     #     logger.info('reached 100 parts, stopping the scraping')
-                                            #     #     raise ScrapingLimitReached() 
-
-                                            #     logger.info(f"working with part {part['part']} with div id {part['part_div_id']}")
-                                            #     escaped_part_id = part['part_div_id'].replace('[', '\\[').replace(']', '\\]')
-                                            #     part_div_element = page.locator(f'tbody#{escaped_part_id}').first
-                                            #     part_div_element.highlight()
-
-                                                
-                                            #     part_number  = part_div_element.locator('span.listing-final-partnumber').first.text_content().strip()
-                                            #     logger.info(f'current part number: {part_number}')
 
                                                 manufacturer = part_div_element.find('span', class_='listing-final-manufacturer').get_text(strip=True) if part_div_element.find('span', class_='listing-final-manufacturer') else None
                                                 logger.info(f'current manufacturer: {manufacturer}')
-                                            #     manufacturer = part_div_element.locator('span.listing-final-manufacturer').first.text_content().strip()
-                                            #     logger.info(f'current manufacturer: {manufacturer}')
+                                                
                                                 images_link = part_div_element.find('img', class_='listing-inline-image')['src'] if part_div_element.find('img', class_='listing-inline-image') else None
                                                 logger.info(f'current image link: {images_link}')
-                                            #     if part_div_element.locator('img.listing-inline-image').count() > 0:
-                                            #         images_link  = part_div_element.locator('img.listing-inline-image').first.get_attribute('src')
-                                            #     else:
-                                            #         images_link = None
-                                            #     logger.info(f'current image link: {images_link}')
+                                                
                                                 name = part_div_element.find('span', class_='span-link-underline-remover').get_text(strip=True) if part_div_element.find('span', class_='span-link-underline-remover') else None
                                                 logger.info(f'current part name: {name}')
-                                            #     if part_div_element.locator('span.span-link-underline-remover').count() > 0:
-                                            #         name = part_div_element.locator('span.span-link-underline-remover').first.text_content().strip()
-                                            #     else:
-                                            #         name = None
-                                            #     logger.info(f'current part name: {name}')
 
                                                 text = part_div_element.find('span', class_='listing-total').get_text(strip=True) if part_div_element.find('span', class_='listing-total') else None
-                                                matches = re.findall(r'\d+\.?\d*', text)
                                                 matches = re.findall(r'\d+\.?\d*', text) if text else []
                                                 if matches:
                                                     base_price = matches[0]
@@ -463,72 +409,14 @@ async def click_elements_by_car_brand():
                                                 if not currency:
                                                     currency = None
 
-                                                
-                                                
-                                            #     if part_div_element.locator('span.listing-total').count() > 0:
-                                            #         text = part_div_element.locator('span.listing-total').first.text_content().strip()
-                                            #         matches = re.findall(r'\d+\.?\d*', text)
-                                            #         if matches:
-                                            #             base_price = matches[0]
-                                            #         else:   
-                                            #             base_price = text
-                                            #     else:
-                                            #         base_price = None
-                                            #     if base_price == 'Out of Stock':
-                                            #         stock_status = False
-                                            #     else:
-                                            #         stock_status = True
-                                            #     currency = part_div_element.locator('span.listing-total').first.text_content().strip().split(r'+d')[0]
-                                            #     if not currency:
-                                            #         currency = None
-
                                                 pack_size = part_div_element.find('span', class_='pack_size_box').get_text(strip=True) if part_div_element.find('span', class_='pack_size_box') else None
 
-
-                                            #     if part_div_element.locator('span.pack_size_box').count() > 0:
-                                            #         pack_size = part_div_element.locator('span.pack_size_box').first.text_content().strip()
-                                            #     else:
-                                            #         pack_size = None
-                                                
-
-
-                                            #     # description and attributes fetching section 
-
-                                            #     # logger.info('checking for more info link for the part to extract description and attributes')
-
-                                            #     # if part_div_element.locator('a.ra-btn-moreinfo').count() > 0:    
-                                            #     #     info_btn = part_div_element.locator('a.ra-btn-moreinfo').first
-                                            #     #     # logger.info(f'info link: {info_link}')
-                                            #     #     # info_btn.click()
-                                            #     #     # time.sleep(10)
-                                            #     #     # all_pages = page.context.pages
-                                            #     #     # html_content = all_pages[1].content()
-                                            #     #     # all_pages[1].close()  # close the new tab after parsing all the data
-                                            #     #     with context.expect_page() as new_page_info:
-                                            #     #         info_btn.click()
-                                            #     #     new_page = new_page_info.value
-
-                                            #     #     new_page.wait_for_load_state(state='domcontentloaded')
-
-                                            #     #     new_page_html_content = new_page.content()
-
-                                            #     #     new_page.close()
-
-                                            #     #     attributes, description = extract_description_and_attributes(new_page_html_content)
-                                                    
-                                            #     # else:
-                                            #     #     attributes = None
-                                            #     #     description = None
-                                            #     #     logger.info('no info link found for the part, skipping description and attributes')
-                                                
                                                 if stock_status:
-                                                    available_quantity = 'tobescraped' # will be handled with separate logic but for it i need to add every single thing into the cart
+                                                    available_quantity = 'tobescraped'
                                                 
                                                 attributes = 'to be scraped'
                                                 description = 'to be scraped'
-
                                                 supplier_sku = 'to be determined later with the client' 
-
                                                 info_link = part_div_element.find('a', class_='ra-btn-moreinfo').get('href') if part_div_element.find('a', class_='ra-btn-moreinfo') else None
 
                                                 part_dict = {
@@ -540,7 +428,7 @@ async def click_elements_by_car_brand():
                                                     'attributes': attributes if attributes else None,
                                                     'car_manufacturer': brand,
                                                     'car_year': year['year'],
-                                                    'car_model': model['model'],
+                                                    'car_model': models[model_idx]['model'],
                                                     'car_submodel': submodel['submodel'],
                                                     'name': name if name else None,
                                                     'description': description if description else None,
@@ -560,27 +448,20 @@ async def click_elements_by_car_brand():
                                                     logger.info(f'{key}: {value}')
 
                                                 parts_final_list.append(part_dict)
-
                                                 logger.info('added part info to final parts list')
 
-
-
-
-                                                '''what is needed to be scraped from a part
-                                                1. part_id
-                                                2. supplier_part_id / catalog_id
-                                                3. brand_id
-                                                4. part_number
-                                                5. normalized_part_number
-                                                6. name 
-                                                7. description
-                                                8. category_id
-                                                9. subcategory_id
-                                                10. images
-                                                11. attributes
-                                                12. vehicle_fitment
-                                                '''
-                                await year_page.goto('https://www.rockauto.com/')
+                            
+                        except Exception as e:
+                            year_display = year if year else f'year_idx_{year_idx} (year is inaccessible)'
+                            logger.warning(f'execution of the year {year_display} of brand {brand} has failed')
+                            failed_dict = {
+                                'year': year_display,
+                                'brand': brand
+                            }
+                            failed_years_processing.append(failed_dict)
+                        finally:
+                            if 'monitor_task' in locals():
+                                monitor_task.cancel()
                             await year_page.close()
 
                 for year_idx in range(years_count):
